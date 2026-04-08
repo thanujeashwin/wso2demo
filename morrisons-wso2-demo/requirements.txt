@@ -1,0 +1,12 @@
+# Morrisons WSO2 Agent Manager – Python Dependencies
+# Install: pip install -r requirements.txt
+
+# Core
+pydantic>=2.0.0           # Data models & validation
+aiohttp>=3.9.0            # Async HTTP server (WSO2 Custom API Agent transport)
+
+# Observability (auto-instrumentation via WSO2 platform toggle)
+opentelemetry-api>=1.24.0
+opentelemetry-sdk>=1.24.0
+opentelemetry-exporter-otlp>=1.24.0
+opentelemetry-instrumentation-aiohttp-server>=0.45b0
