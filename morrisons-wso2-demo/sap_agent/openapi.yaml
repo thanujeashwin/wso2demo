@@ -1,0 +1,81 @@
+openapi: 3.1.0
+info:
+  title: Morrisons SAP ERP Agent
+  description: >
+    SAP S/4HANA agent for Morrisons supermarkets. Handles stock level checks,
+    purchase order creation, supplier data retrieval, goods movement history,
+    and 90-day demand forecasting via SAP IBP.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8001
+paths:
+  /chat:
+    post:
+      summary: Send a message to the SAP ERP agent
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              stock_check:
+                summary: Check stock level
+                value:
+                  message: "What is the current stock level for SKU-BEEF-001 at STORE-001?"
+                  session_id: "demo-session-1"
+                  context:
+                    store_id: "STORE-001"
+                    user_id: "buyer-001"
+              raise_po:
+                summary: Raise a purchase order
+                value:
+                  message: "Raise a purchase order for 200 units of SKU-SALM-004 from supplier SUP-004"
+                  session_id: "demo-session-2"
+                  context: {}
+      responses:
+        '200':
+          description: Agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        '200':
+          description: Agent is healthy
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+      properties:
+        message:
+          type: string
+          minLength: 1
+          description: User's question or instruction for the SAP ERP agent
+        session_id:
+          type: string
+          description: Unique session / conversation identifier
+        context:
+          type: object
+          description: Optional context such as store_id, user_id, cost_centre
+          additionalProperties: true
+    ChatResponse:
+      type: object
+      required:
+        - response
+      properties:
+        response:
+          type: string
+          description: The agent's text response

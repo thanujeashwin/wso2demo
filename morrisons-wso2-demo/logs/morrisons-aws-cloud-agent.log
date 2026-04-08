@@ -1,0 +1,11 @@
+10:21:00 INFO     [1m[33m[morrisons-aws-cloud-agent] Agent server STARTED[0m  {"port": 8004, "pid": 10869}
+2026-04-08 10:21:49 INFO     Shutdown signal received for morrisons-aws-cloud-agent
+10:21:49 INFO     Shutdown signal received for morrisons-aws-cloud-agent
+2026-04-08 10:21:49 INFO     Draining – active connections: 0
+10:21:49 INFO     Draining – active connections: 0
+10:21:49 INFO     [1m[33m[morrisons-aws-cloud-agent] Agent server STOPPED[0m  {"requests_served": 0}
+[32m[1m  ✔ morrisons-aws-cloud-agent[0m  listening on port [36m8004[0m  pid=10869
+
+[33m[morrisons-aws-cloud-agent] Shutdown signal received – draining…[0m
+[33m  ⏳ morrisons-aws-cloud-agent: draining 0 connection(s)…[0m
+[31m  ✖ morrisons-aws-cloud-agent stopped  (served 0 requests)[0m
