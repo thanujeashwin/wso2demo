@@ -1,0 +1,14 @@
+10:21:00 INFO     [1m[31m[morrisons-gcp-cloud-agent] Agent server STARTED[0m  {"port": 8005, "pid": 10870}
+10:21:15 INFO     [1m[31m  ▶ START [run_bigquery_analytics][0m
+10:21:15 INFO     [1m[31m[morrisons-gcp-cloud-agent] BigQuery: top_selling_skus[0m
+10:21:15 INFO     [1m[31m  ✔  END  [run_bigquery_analytics]  (606 ms)[0m
+2026-04-08 10:21:49 INFO     Shutdown signal received for morrisons-gcp-cloud-agent
+10:21:49 INFO     Shutdown signal received for morrisons-gcp-cloud-agent
+2026-04-08 10:21:49 INFO     Draining – active connections: 0
+10:21:49 INFO     Draining – active connections: 0
+10:21:49 INFO     [1m[31m[morrisons-gcp-cloud-agent] Agent server STOPPED[0m  {"requests_served": 1}
+[32m[1m  ✔ morrisons-gcp-cloud-agent[0m  listening on port [36m8005[0m  pid=10870
+
+[33m[morrisons-gcp-cloud-agent] Shutdown signal received – draining…[0m
+[33m  ⏳ morrisons-gcp-cloud-agent: draining 0 connection(s)…[0m
+[31m  ✖ morrisons-gcp-cloud-agent stopped  (served 1 requests)[0m

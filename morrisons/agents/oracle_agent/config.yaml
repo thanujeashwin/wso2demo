@@ -1,0 +1,117 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# WSO2 Agent Manager – Oracle ERP Agent Registration
+# ═══════════════════════════════════════════════════════════════════════════
+apiVersion: wso2.com/v1alpha1
+kind: Agent
+metadata:
+  name: morrisons-oracle-erp-agent
+  namespace: morrisons-retail
+  labels:
+    domain: finance-procurement
+    system: oracle-fusion-financials
+    environment: production
+    cloud: oci                    # Oracle ERP runs on OCI at Morrisons
+
+spec:
+  description: >
+    Oracle Fusion Financials ERP agent for Morrisons. Manages budget availability,
+    purchase order approvals (AME), cost-centre reporting, accounts payable,
+    and general ledger journals via Oracle ERP Cloud REST APIs.
+
+  runtime:
+    type: python
+    image: morrisons/oracle-erp-agent:1.1.0
+    entrypoint: agents.oracle_agent.agent:oracle_agent
+    replicas: 2
+
+  tools:
+    - name: get_budget_availability
+      description: Query Oracle Fusion GL for remaining budget on a cost centre.
+      inputSchema:
+        type: object
+        properties:
+          cost_centre:  { type: string }
+          fiscal_year:  { type: integer }
+        required: [cost_centre]
+
+    - name: approve_purchase_order
+      description: Submit a PO to Oracle Approval Management Engine (AME) for approval.
+      inputSchema:
+        type: object
+        properties:
+          po_number:   { type: string }
+          total_value: { type: number }
+          cost_centre: { type: string }
+          category:    { type: string }
+          requester:   { type: string, default: "SYSTEM" }
+        required: [po_number, total_value, cost_centre, category]
+
+    - name: get_cost_centre_report
+      description: Retrieve spend report for a cost centre (MTD / QTD / YTD).
+      inputSchema:
+        type: object
+        properties:
+          cost_centre: { type: string }
+          period:      { type: string, enum: [MTD, QTD, YTD], default: MTD }
+        required: [cost_centre]
+
+    - name: get_invoice_status
+      description: Check Oracle AP invoice payment status for a purchase order.
+      inputSchema:
+        type: object
+        properties:
+          po_number: { type: string }
+        required: [po_number]
+
+    - name: create_journal_entry
+      description: Post a journal entry to Oracle General Ledger.
+      inputSchema:
+        type: object
+        properties:
+          description:    { type: string }
+          debit_account:  { type: string }
+          credit_account: { type: string }
+          amount:         { type: number }
+          cost_centre:    { type: string }
+        required: [description, debit_account, credit_account, amount, cost_centre]
+
+  backendConnection:
+    type: rest
+    baseUrl: https://oracle-erp.morrisons.internal/fscmRestApi/resources/11.13.18.05
+    authType: oauth2_client_credentials
+    oauthTokenUrl: https://idcs.oracle.morrisons.internal/oauth2/v1/token
+    clientSecretRef: secret/morrisons/oracle-idcs-credentials
+
+  transport:
+    protocol: mcp-sse
+    port: 8080
+    path: /mcp/oracle-erp
+    tls:
+      enabled: true
+
+  guardrails:
+    maxAutoApprovalValue: 5000        # GBP – above this, human approval required
+    requireBudgetCheck: true
+    allowedCostCentres:
+      - CC-FRESH-*
+      - CC-BAKERY-*
+      - CC-FISH-*
+      - CC-DAIRY-*
+      - CC-OPEX-*
+    blockedOperations: []
+    rateLimits:
+      requestsPerMinute: 60
+      burstSize: 10
+
+  observability:
+    tracing:
+      enabled: true
+      exporter: otlp
+      endpoint: https://choreo-obs.wso2.morrisons.internal:4318/v1/traces
+    metrics:
+      enabled: true
+      scrapePort: 9091
+    logging:
+      level: INFO
+      format: json
+      destination: oci-logging           # Native OCI logging for Oracle agent
