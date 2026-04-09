@@ -102,7 +102,9 @@ Simulates Salesforce Sales & Service Cloud for customer loyalty, personalised ma
 | `get_supplier_account` | Supplier account health and relationship data |
 | `log_service_case` | Creates a Salesforce Service Cloud case |
 
-**Loyalty tiers:** Bronze (0–499 pts), Silver (500–1999 pts), Gold (2000+ pts)
+**Loyalty tiers:** Bronze (0–499 pts), Silver (500–1999 pts), Gold (2000+ pts), Platinum (8000+ pts)
+
+**Demo customers:** `CUST-100142` (Sarah Thompson – Gold), `CUST-100256` (James Patel – Silver), `CUST-100389` (Emma Clarke – Platinum), `CUST-100471` (David O'Brien – Bronze)
 
 ---
 
