@@ -173,7 +173,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 > **Deploy order:** deploy the 5 sub-agents first, then the orchestrator last (it needs the sub-agent URLs at startup).
 
-> **Port:** selecting **Chat Agent** type means the platform routes all traffic to port `8000` inside the container. Each agent reads its port from the `PORT` environment variable injected by Agent Manager (defaults to `8000`). You do not need to set `PORT` manually.
+> **Port:** you must add `PORT` = `8000` as an environment variable for every agent when deploying. This tells the agent which port to bind to inside its container so Agent Manager can reach it.
 
 ---
 
@@ -205,10 +205,11 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 **Agent Type:** `Chat Agent` — standard chat interface with POST `/chat` on port 8000
 
-**Environment Variables:** *(none required in demo mode)*
+**Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
+| `PORT` | `8000` | ☐ |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
 
 **Example `/chat` request:**
@@ -257,10 +258,11 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 **Agent Type:** `Chat Agent`
 
-**Environment Variables:** *(none required in demo mode)*
+**Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
+| `PORT` | `8000` | ☐ |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
 
 **Example `/chat` request:**
@@ -309,10 +311,11 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 **Agent Type:** `Chat Agent`
 
-**Environment Variables:** *(none required in demo mode)*
+**Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
+| `PORT` | `8000` | ☐ |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
 
 **Example `/chat` request:**
@@ -361,10 +364,11 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 **Agent Type:** `Chat Agent`
 
-**Environment Variables:** *(none required in demo mode)*
+**Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
+| `PORT` | `8000` | ☐ |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
 
 **Example `/chat` request:**
@@ -413,10 +417,11 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 **Agent Type:** `Chat Agent`
 
-**Environment Variables:** *(none required in demo mode)*
+**Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
+| `PORT` | `8000` | ☐ |
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
 
 **Example `/chat` request:**
@@ -467,10 +472,11 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 **Agent Type:** `Chat Agent`
 
-**Environment Variables:** *(set the deployed URL for each sub-agent)*
+**Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
+| `PORT` | `8000` | ☐ |
 | `SAP_AGENT_URL` | `http://<sap-agent-host>:<port>` | ☐ |
 | `ORACLE_AGENT_URL` | `http://<oracle-agent-host>:<port>` | ☐ |
 | `SALESFORCE_AGENT_URL` | `http://<salesforce-agent-host>:<port>` | ☐ |
