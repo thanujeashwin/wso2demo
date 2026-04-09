@@ -169,70 +169,287 @@ Every step emits Traceloop spans: LLM call, tool execution, graph transitions.
 
 ## WSO2 Agent Manager Configuration
 
-### Step 1 — Add each agent
+> **Deploy order:** always deploy the 5 sub-agents first, then the orchestrator last.
 
-In Agent Manager, add **6 separate agents** using these settings:
+---
 
-| Agent | Repository path | Entry point | Port |
-|---|---|---|---|
-| Morrisons Orchestrator | `orchestrator/` | `main.py` | 8000 |
-| Morrisons SAP ERP | `sap_agent/` | `main.py` | 8001 |
-| Morrisons Oracle ERP | `oracle_agent/` | `main.py` | 8002 |
-| Morrisons Salesforce CRM | `salesforce_agent/` | `main.py` | 8003 |
-| Morrisons AWS Cloud | `aws_agent/` | `main.py` | 8004 |
-| Morrisons GCP Cloud | `gcp_agent/` | `main.py` | 8005 |
+### Agent 1 — SAP ERP Agent
 
-> **Important:** Set the repository path to the subdirectory (e.g. `sap_agent/`), not the repo root. Each agent's `main.py` is the uvicorn entry point.
+| Field | Value |
+|---|---|
+| **Name** | `Morrisons SAP ERP Agent` |
+| **Description** | SAP S/4HANA agent for stock levels, purchase orders, supplier data, and demand forecasting |
+| **Repository URL** | `https://github.com/thanujeashwin/wso2demo` |
+| **Branch** | `main` |
+| **Sub-directory** | `Morrisons/sap_agent` |
+| **Entry point** | `main.py` |
+| **Port** | `8001` |
+| **Health endpoint** | `GET /health` |
+| **Chat endpoint** | `POST /chat` |
 
-### Step 2 — Environment variables
-
-No API keys are required in demo mode. The only optional variables are:
-
+**Environment variables:**
 ```env
-# Optional – only needed if switching to a real LLM later
+# No keys required in demo mode
+# Optional – only if switching to a real LLM:
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
+```
 
-# Sub-agent URLs (defaults shown – change if deploying to different hosts/ports)
+**Example request:**
+```json
+POST http://<host>:8001/chat
+{
+  "message": "What is the current stock level for SKU-BEEF-001?",
+  "session_id": "demo-session-1",
+  "context": { "store_id": "STORE-001", "user_id": "buyer-001" }
+}
+```
+
+**Example response:**
+```json
+{
+  "response": "SAP MM Stock Check\nSKU: SKU-BEEF-001 | Store: STORE-001 | Plant: GBR1\nProduct: Morrisons Best Beef Mince 500g\nCurrent Stock: 45 units\nReorder Level: 120 units\nStatus: ⚠ BELOW REORDER LEVEL – replenishment required\n..."
+}
+```
+
+---
+
+### Agent 2 — Oracle ERP Agent
+
+| Field | Value |
+|---|---|
+| **Name** | `Morrisons Oracle ERP Agent` |
+| **Description** | Oracle Fusion Cloud ERP agent for budgets, PO approvals, invoices, cost centres, and journal entries |
+| **Repository URL** | `https://github.com/thanujeashwin/wso2demo` |
+| **Branch** | `main` |
+| **Sub-directory** | `Morrisons/oracle_agent` |
+| **Entry point** | `main.py` |
+| **Port** | `8002` |
+| **Health endpoint** | `GET /health` |
+| **Chat endpoint** | `POST /chat` |
+
+**Environment variables:**
+```env
+# No keys required in demo mode
+# Optional – only if switching to a real LLM:
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+**Example request:**
+```json
+POST http://<host>:8002/chat
+{
+  "message": "What is the available budget for cost centre CC-PRODUCE-01 in Q1 2026?",
+  "session_id": "demo-session-1",
+  "context": { "user_id": "finance-manager-001" }
+}
+```
+
+**Example response:**
+```json
+{
+  "response": "Oracle Fusion Budget Availability\nCost Centre: CC-PRODUCE-01 | Period: 2026-Q1\nApproved Budget: £850,000\nActual Spend: £512,340\nCommitted: £87,200\nAvailable: £250,460 (29.5%)\nStatus: ✓ Within budget\n..."
+}
+```
+
+---
+
+### Agent 3 — Salesforce CRM Agent
+
+| Field | Value |
+|---|---|
+| **Name** | `Morrisons Salesforce CRM Agent` |
+| **Description** | Salesforce Sales & Service Cloud agent for customer loyalty, personalised offers, supplier accounts, and service cases |
+| **Repository URL** | `https://github.com/thanujeashwin/wso2demo` |
+| **Branch** | `main` |
+| **Sub-directory** | `Morrisons/salesforce_agent` |
+| **Entry point** | `main.py` |
+| **Port** | `8003` |
+| **Health endpoint** | `GET /health` |
+| **Chat endpoint** | `POST /chat` |
+
+**Environment variables:**
+```env
+# No keys required in demo mode
+# Optional – only if switching to a real LLM:
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+**Example request:**
+```json
+POST http://<host>:8003/chat
+{
+  "message": "Get the loyalty profile for customer CUST-100142",
+  "session_id": "demo-session-1",
+  "context": { "user_id": "crm-agent-001" }
+}
+```
+
+**Example response:**
+```json
+{
+  "response": "Salesforce Customer Profile\nID: CUST-100142 | Name: Sarah Thompson\nLoyalty Tier: Gold | Points: 4,820\nLifetime Spend: £12,340 | Member Since: 2019-03-14\nPreferred Categories: Fresh Produce, Dairy\n..."
+}
+```
+
+---
+
+### Agent 4 — AWS Cloud Agent
+
+| Field | Value |
+|---|---|
+| **Name** | `Morrisons AWS Cloud Agent` |
+| **Description** | AWS agent for sales analytics, Lambda workflows, S3 reports, SNS notifications, and DynamoDB session data |
+| **Repository URL** | `https://github.com/thanujeashwin/wso2demo` |
+| **Branch** | `main` |
+| **Sub-directory** | `Morrisons/aws_agent` |
+| **Entry point** | `main.py` |
+| **Port** | `8004` |
+| **Health endpoint** | `GET /health` |
+| **Chat endpoint** | `POST /chat` |
+
+**Environment variables:**
+```env
+# No keys required in demo mode
+# Optional – only if switching to a real LLM:
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+**Example request:**
+```json
+POST http://<host>:8004/chat
+{
+  "message": "Analyse sales trends for STORE-001 over the last 30 days",
+  "session_id": "demo-session-1",
+  "context": { "store_id": "STORE-001" }
+}
+```
+
+**Example response:**
+```json
+{
+  "response": "AWS Sales Trend Analysis | Store: STORE-001 | Period: 30 days\nTotal Revenue: £1,842,500\nTop Category: Fresh Meat (£412,000, +8.3% WoW)\nBasket Size: £34.20 avg | Transactions: 53,870\nPeak Day: Saturday | Peak Hour: 12:00–13:00\n..."
+}
+```
+
+---
+
+### Agent 5 — GCP Cloud Agent
+
+| Field | Value |
+|---|---|
+| **Name** | `Morrisons GCP Cloud Agent` |
+| **Description** | GCP agent for BigQuery analytics, Vertex AI predictions, Pub/Sub events, IoT sensor data, and Document AI |
+| **Repository URL** | `https://github.com/thanujeashwin/wso2demo` |
+| **Branch** | `main` |
+| **Sub-directory** | `Morrisons/gcp_agent` |
+| **Entry point** | `main.py` |
+| **Port** | `8005` |
+| **Health endpoint** | `GET /health` |
+| **Chat endpoint** | `POST /chat` |
+
+**Environment variables:**
+```env
+# No keys required in demo mode
+# Optional – only if switching to a real LLM:
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+**Example request:**
+```json
+POST http://<host>:8005/chat
+{
+  "message": "Run a BigQuery sales summary for STORE-001",
+  "session_id": "demo-session-1",
+  "context": { "store_id": "STORE-001" }
+}
+```
+
+**Example response:**
+```json
+{
+  "response": "BigQuery Analytics | Query: sales_summary | Store: STORE-001\nRows Processed: 2,847,392 | Bytes Billed: 48 MB\nRevenue (7d): £428,750 | Units Sold: 187,430\nTop SKU: SKU-MILK-003 (12,840 units)\nQuery Duration: 1.24s | Job ID: bq-job-20260409-001\n..."
+}
+```
+
+---
+
+### Agent 6 — Orchestrator
+
+| Field | Value |
+|---|---|
+| **Name** | `Morrisons Orchestrator` |
+| **Description** | Master orchestrator that routes requests to SAP, Oracle, Salesforce, AWS, and GCP specialist agents |
+| **Repository URL** | `https://github.com/thanujeashwin/wso2demo` |
+| **Branch** | `main` |
+| **Sub-directory** | `Morrisons/orchestrator` |
+| **Entry point** | `main.py` |
+| **Port** | `8000` |
+| **Health endpoint** | `GET /health` |
+| **Chat endpoint** | `POST /chat` |
+
+**Environment variables:**
+```env
+# Sub-agent URLs — update if agents are deployed on different hosts
 SAP_AGENT_URL=http://localhost:8001
 ORACLE_AGENT_URL=http://localhost:8002
 SALESFORCE_AGENT_URL=http://localhost:8003
 AWS_AGENT_URL=http://localhost:8004
 GCP_AGENT_URL=http://localhost:8005
+
+# Optional – only if switching to a real LLM:
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 ```
 
-### Step 3 — Deploy order
-
-Deploy sub-agents **before** the orchestrator:
-
-```
-1. sap_agent
-2. oracle_agent
-3. salesforce_agent
-4. aws_agent
-5. gcp_agent
-6. orchestrator  ← deploy last
+**Example request:**
+```json
+POST http://<host>:8000/chat
+{
+  "message": "Check stock for beef mince, raise a PO if needed, and notify the ops team",
+  "session_id": "demo-session-1",
+  "context": { "user_id": "store-manager-001", "store_id": "STORE-001" }
+}
 ```
 
-### Step 4 — Verify
+**Example response:**
+```json
+{
+  "response": "Here is the consolidated response from the Morrisons specialist agents:\n\nSAP MM Stock Check — SKU-BEEF-001 is BELOW REORDER LEVEL (45 units, reorder at 120).\nSAP Purchase Order PO-004502 raised for 240 units from British Meat Supplies Ltd.\nAWS SNS notification sent to ops-alerts topic.\n\n✓ Orchestration complete."
+}
+```
 
-Each agent exposes a health check endpoint:
+---
+
+### Request schema (all agents)
+
+All six agents share the same `/chat` request and response schema:
+
+```yaml
+ChatRequest:
+  message:    string  # required — user's question or instruction
+  session_id: string  # required — unique conversation identifier
+  context:    object  # optional — key/value pairs (store_id, user_id, etc.)
+
+ChatResponse:
+  response:   string  # agent's text response
+```
+
+---
+
+### Verify all agents are healthy
 
 ```bash
-curl http://localhost:8001/health   # SAP
-curl http://localhost:8002/health   # Oracle
-curl http://localhost:8003/health   # Salesforce
-curl http://localhost:8004/health   # AWS
-curl http://localhost:8005/health   # GCP
-curl http://localhost:8000/health   # Orchestrator
-```
-
-Send a test message to the orchestrator:
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Check stock levels for beef", "session_id": "test-001"}'
+curl http://localhost:8001/health   # → {"status":"ok","agent":"morrisons-sap-erp-agent"}
+curl http://localhost:8002/health   # → {"status":"ok","agent":"morrisons-oracle-erp-agent"}
+curl http://localhost:8003/health   # → {"status":"ok","agent":"morrisons-salesforce-agent"}
+curl http://localhost:8004/health   # → {"status":"ok","agent":"morrisons-aws-cloud-agent"}
+curl http://localhost:8005/health   # → {"status":"ok","agent":"morrisons-gcp-cloud-agent"}
+curl http://localhost:8000/health   # → {"status":"ok","agent":"morrisons-orchestrator"}
 ```
 
 ---
@@ -275,19 +492,21 @@ Then set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the agent's environment. The
 
 ```
 wso2demo/
-├── orchestrator/           # Master orchestrator (port 8000)
-│   ├── app.py              # FastAPI app + /chat endpoint
-│   ├── config.py           # Pydantic settings
-│   ├── graph.py            # LangGraph ReAct graph + DemoLLM
-│   ├── tools.py            # ask_* tools (HTTP delegation to sub-agents)
-│   ├── main.py             # uvicorn entry point
-│   ├── openapi.yaml        # OpenAPI 3.1 spec
-│   └── requirements.txt
-├── sap_agent/              # SAP S/4HANA agent (port 8001)
-├── oracle_agent/           # Oracle Fusion ERP agent (port 8002)
-├── salesforce_agent/       # Salesforce CRM agent (port 8003)
-├── aws_agent/              # AWS Cloud agent (port 8004)
-└── gcp_agent/              # GCP agent (port 8005)
+└── Morrisons/
+    ├── README.md
+    ├── orchestrator/           # Master orchestrator (port 8000)
+    │   ├── app.py              # FastAPI app + /chat endpoint
+    │   ├── config.py           # Pydantic settings (LLM config, sub-agent URLs)
+    │   ├── graph.py            # LangGraph ReAct graph + DemoLLM
+    │   ├── tools.py            # ask_* tools (HTTP delegation to sub-agents)
+    │   ├── main.py             # uvicorn entry point
+    │   ├── openapi.yaml        # OpenAPI 3.1 spec
+    │   └── requirements.txt
+    ├── sap_agent/              # SAP S/4HANA agent (port 8001)
+    ├── oracle_agent/           # Oracle Fusion ERP agent (port 8002)
+    ├── salesforce_agent/       # Salesforce CRM agent (port 8003)
+    ├── aws_agent/              # AWS Cloud agent (port 8004)
+    └── gcp_agent/              # GCP agent (port 8005)
 ```
 
 Each agent directory has the same 7-file structure as `orchestrator/`.
