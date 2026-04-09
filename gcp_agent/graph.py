@@ -1,0 +1,138 @@
+"""
+Morrisons GCP Cloud Agent – LangGraph Graph
+============================================
+LangGraph ReAct agent: agent node ↔ tools node.
+Uses DemoLLM – no API key required. Full LangGraph pipeline
+preserved so Traceloop emits spans on every invocation.
+"""
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Annotated, Any, List, TypedDict
+
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
+from pydantic import ConfigDict, Field
+
+from tools import TOOLS
+
+logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPT = """You are a Google Cloud Platform specialist agent for Morrisons supermarkets (UK).
+
+You manage analytics, AI/ML predictions, event streaming, IoT sensor data,
+and document processing using Google Cloud Platform.
+
+Key GCP services in use:
+- BigQuery: Enterprise analytics and data warehouse
+- Vertex AI: Demand forecasting and product recommendation models
+- Pub/Sub: Real-time event streaming for reorder and pricing events
+- IoT Core / Cloud IoT: Store refrigeration and environmental sensors
+- Document AI: Automated invoice and supplier document processing
+
+Store IDs: STORE-001 (Bradford HQ), STORE-042 (Leeds), STORE-107 (Manchester)
+Vertex AI models: demand-forecast-v2, product-recommender-v1, price-optimiser-v3
+"""
+
+# ---------------------------------------------------------------------------
+# Demo LLM – keyword-driven tool selection, no API key needed
+# ---------------------------------------------------------------------------
+
+_TOOL_ROUTES = [
+    (["vertex", "prediction", "model", "ml", "ai", "recommend"], "call_vertex_ai_prediction",
+     {"model_name": "demand-forecast-v2", "sku": "SKU-BEEF-001"}),
+    (["pubsub", "event", "publish", "stream", "message"],        "publish_pubsub_event",
+     {"topic": "reorder-events",
+      "event_data": {"sku": "SKU-BEEF-001", "store": "STORE-001", "action": "reorder_trigger"}}),
+    (["iot", "sensor", "temperature", "refrigerat", "cold"],     "get_store_iot_data",
+     {"store_id": "STORE-001", "sensor_type": "temperature"}),
+    (["document", "invoice", "scan", "ocr", "extract"],          "run_document_ai",
+     {"document_type": "supplier_invoice", "document_id": "INV-2026-0142"}),
+    (["bigquery", "analytics", "query", "data", "report"],       "run_bigquery_analytics",
+     {"query_type": "sales_summary", "store_id": "STORE-001"}),
+]
+_DEFAULT_TOOL = ("run_bigquery_analytics",
+                 {"query_type": "sales_summary", "store_id": "STORE-001"})
+
+
+class DemoLLM(BaseChatModel):
+    """Mock LLM for WSO2 Agent Manager demo – no API key required."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    bound_tools: List[Any] = Field(default_factory=list)
+
+    @property
+    def _llm_type(self) -> str:
+        return "demo-mock"
+
+    def bind_tools(self, tools, **kwargs) -> "DemoLLM":
+        return DemoLLM(bound_tools=list(tools))
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        has_tool_result = any(isinstance(m, ToolMessage) for m in messages)
+
+        if has_tool_result or not self.bound_tools:
+            tool_output = next(
+                (m.content for m in reversed(messages) if isinstance(m, ToolMessage)), ""
+            )
+            reply = (
+                f"{tool_output}\n\n"
+                "✓ GCP data retrieved successfully. "
+                "Let me know if you need further cloud analytics or AI information."
+            )
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=reply))])
+
+        tool_name, args = self._select(messages)
+        tool_obj = next((t for t in self.bound_tools if t.name == tool_name), self.bound_tools[0])
+        return ChatResult(generations=[ChatGeneration(
+            message=AIMessage(
+                content="",
+                tool_calls=[{"name": tool_obj.name, "args": args,
+                             "id": f"gcp_{uuid.uuid4().hex[:8]}"}],
+            )
+        )])
+
+    def _select(self, messages):
+        text = " ".join(
+            m.content.lower() for m in messages
+            if isinstance(m, BaseMessage) and not isinstance(m, ToolMessage)
+        )
+        for keywords, name, args in _TOOL_ROUTES:
+            if any(k in text for k in keywords):
+                return name, args
+        return _DEFAULT_TOOL
+
+
+# ---------------------------------------------------------------------------
+# Graph
+# ---------------------------------------------------------------------------
+
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+
+
+def build_graph():
+    tools = TOOLS
+    llm = DemoLLM().bind_tools(tools)
+
+    def agent_node(state: AgentState) -> AgentState:
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+        response = llm.invoke(messages)
+        tool_calls = getattr(response, "tool_calls", None) or []
+        if tool_calls:
+            logger.debug("GCP agent calling tools: %s", [t.get("name") for t in tool_calls])
+        return {"messages": [response]}
+
+    graph = StateGraph(AgentState)
+    graph.add_node("agent", agent_node)
+    graph.add_node("tools", ToolNode(tools))
+    graph.add_conditional_edges("agent", tools_condition)
+    graph.add_edge("tools", "agent")
+    graph.set_entry_point("agent")
+
+    return graph.compile(checkpointer=InMemorySaver())
