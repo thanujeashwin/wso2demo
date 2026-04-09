@@ -42,14 +42,16 @@ Demo supplier accounts: ACC-SUP-00234, ACC-SUP-00891
 
 _TOOL_ROUTES = [
     (["offer", "promotion", "deal", "discount", "personalise"], "generate_personalised_offer",
-     {"customer_id": "CUST-100142", "category": "Fresh Produce"}),
+     {"customer_id": "CUST-100142", "channel": "app", "category": "Fresh Produce"}),
     (["segment", "tier", "upgrade", "classify"],                "update_customer_segment",
-     {"customer_id": "CUST-100142", "new_segment": "Gold Loyalty"}),
+     {"customer_id": "CUST-100142", "segment": "HIGH_VALUE",
+      "reason": "High YTD spend and loyalty points"}),
     (["supplier account", "vendor account", "b2b", "account"],  "get_supplier_account",
-     {"account_id": "ACC-SUP-00234"}),
+     {"supplier_id": "SUP-001"}),
     (["case", "complaint", "issue", "service", "problem"],      "log_service_case",
-     {"customer_id": "CUST-100142", "issue_type": "Product Quality",
-      "description": "Customer reported quality concern with fresh produce delivery"}),
+     {"customer_id": "CUST-100142", "subject": "Product Quality Concern",
+      "description": "Customer reported quality concern with fresh produce delivery",
+      "priority": "Medium"}),
     (["customer", "profile", "loyalty", "contact", "member"],   "get_customer_profile",
      {"customer_id": "CUST-100142"}),
 ]

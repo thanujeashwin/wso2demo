@@ -48,17 +48,16 @@ _TOOL_ROUTES = [
     (["vertex", "prediction", "model", "ml", "ai", "recommend"], "call_vertex_ai_prediction",
      {"model_name": "demand-forecast-v2", "sku": "SKU-BEEF-001"}),
     (["pubsub", "event", "publish", "stream", "message"],        "publish_pubsub_event",
-     {"topic": "reorder-events",
-      "event_data": {"sku": "SKU-BEEF-001", "store": "STORE-001", "action": "reorder_trigger"}}),
+     {"topic": "reorder-events", "event_type": "reorder_trigger",
+      "data": '{"sku": "SKU-BEEF-001", "store": "STORE-001"}'}),
     (["iot", "sensor", "temperature", "refrigerat", "cold"],     "get_store_iot_data",
-     {"store_id": "STORE-001", "sensor_type": "temperature"}),
+     {"sensor_id": "SENSOR-STORE001-FRIDGE-01"}),
     (["document", "invoice", "scan", "ocr", "extract"],          "run_document_ai",
-     {"document_type": "supplier_invoice", "document_id": "INV-2026-0142"}),
+     {"document_type": "supplier_invoice"}),
     (["bigquery", "analytics", "query", "data", "report"],       "run_bigquery_analytics",
-     {"query_type": "sales_summary", "store_id": "STORE-001"}),
+     {"query_name": "sales_summary"}),
 ]
-_DEFAULT_TOOL = ("run_bigquery_analytics",
-                 {"query_type": "sales_summary", "store_id": "STORE-001"})
+_DEFAULT_TOOL = ("run_bigquery_analytics", {"query_name": "sales_summary"})
 
 
 class DemoLLM(BaseChatModel):

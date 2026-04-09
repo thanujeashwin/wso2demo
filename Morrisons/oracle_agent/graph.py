@@ -42,19 +42,21 @@ Fiscal periods: 2026-Q1, 2026-Q2, 2025-Q4
 
 _TOOL_ROUTES = [
     (["approve", "approval", "authorise", "sign off"],         "approve_purchase_order",
-     {"po_number": "PO-004501", "approver_id": "MGMT-001"}),
+     {"po_number": "PO-004501", "total_value": 4800.00,
+      "cost_centre": "CC-PRODUCE-01", "category": "Fresh Meat"}),
     (["cost centre", "cost center", "spend", "expenditure"],   "get_cost_centre_report",
-     {"cost_centre": "CC-PRODUCE-01", "fiscal_period": "2026-Q1"}),
+     {"cost_centre": "CC-PRODUCE-01", "period": "QTD"}),
     (["invoice", "payment", "payable", "pay"],                 "get_invoice_status",
-     {"invoice_number": "INV-2026-0142"}),
+     {"po_number": "PO-004501"}),
     (["journal", "entry", "gl", "ledger", "account"],          "create_journal_entry",
      {"debit_account": "5100-COGS", "credit_account": "1200-INVENTORY",
-      "amount": 15000.0, "description": "Quarterly stock adjustment – Produce"}),
+      "amount": 15000.0, "description": "Quarterly stock adjustment – Produce",
+      "cost_centre": "CC-PRODUCE-01"}),
     (["budget", "available", "funds", "remaining"],            "get_budget_availability",
-     {"cost_centre": "CC-PRODUCE-01", "period": "2026-Q1"}),
+     {"cost_centre": "CC-PRODUCE-01", "fiscal_year": 2026}),
 ]
 _DEFAULT_TOOL = ("get_budget_availability",
-                 {"cost_centre": "CC-PRODUCE-01", "period": "2026-Q1"})
+                 {"cost_centre": "CC-PRODUCE-01", "fiscal_year": 2026})
 
 
 class DemoLLM(BaseChatModel):

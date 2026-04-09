@@ -46,18 +46,18 @@ Store IDs: STORE-001 (Bradford HQ), STORE-042 (Leeds), STORE-107 (Manchester)
 _TOOL_ROUTES = [
     (["lambda", "workflow", "trigger", "function", "serverless"], "trigger_lambda_workflow",
      {"workflow_name": "low-stock-reorder",
-      "payload": {"store": "STORE-001", "sku": "SKU-BEEF-001", "threshold": 50}}),
+      "payload": '{"store": "STORE-001", "sku": "SKU-BEEF-001", "threshold": 50}'}),
     (["s3", "report", "file", "download", "bucket"],             "get_s3_report",
-     {"report_name": "daily-sales-summary", "date": "2026-04-09"}),
+     {"report_name": "daily-sales-summary"}),
     (["notification", "alert", "sns", "message", "notify"],      "send_sns_notification",
-     {"topic": "ops-alerts",
-      "message": "Low stock alert: SKU-BEEF-001 below reorder level at STORE-001"}),
+     {"topic": "ops-alerts", "subject": "Low Stock Alert",
+      "message": "SKU-BEEF-001 is below reorder level at STORE-001"}),
     (["session", "dynamo", "dynamodb", "cart", "basket"],        "query_dynamodb_session",
      {"session_id": "SESSION-DEMO-001"}),
     (["sales", "trend", "analytics", "performance", "revenue"],  "analyse_sales_trends",
-     {"store_id": "STORE-001", "days": 30}),
+     {"sku": "SKU-BEEF-001", "weeks": 4}),
 ]
-_DEFAULT_TOOL = ("analyse_sales_trends", {"store_id": "STORE-001", "days": 30})
+_DEFAULT_TOOL = ("analyse_sales_trends", {"sku": "SKU-BEEF-001", "weeks": 4})
 
 
 class DemoLLM(BaseChatModel):
