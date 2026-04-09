@@ -1,5 +1,12 @@
-"""WSO2 Agent Manager Start Command: python main.py | Port: 8005"""
+"""
+WSO2 Agent Manager entry point – GCP Cloud Agent
+Port is read from the PORT environment variable (set by Agent Manager).
+Falls back to 8005 for local development.
+"""
+import os
 from app import app
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8005)
+    port = int(os.environ.get("PORT", 8005))
+    uvicorn.run(app, host="0.0.0.0", port=port)

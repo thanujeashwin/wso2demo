@@ -1,17 +1,19 @@
 """
-WSO2 Agent Manager Start Command: python main.py
-WSO2 Agent Manager Port:         8000
-WSO2 Agent Manager Base Path:    /
+WSO2 Agent Manager entry point – Orchestrator
+Port is read from the PORT environment variable (set by Agent Manager).
+Falls back to 8000 for local development.
 
-Environment variables to configure sub-agent URLs (set in Agent Manager):
-  SAP_AGENT_URL        = http://<sap-agent-host>:8001
-  ORACLE_AGENT_URL     = http://<oracle-agent-host>:8002
-  SALESFORCE_AGENT_URL = http://<salesforce-agent-host>:8003
-  AWS_AGENT_URL        = http://<aws-agent-host>:8004
-  GCP_AGENT_URL        = http://<gcp-agent-host>:8005
+Sub-agent URLs are configured via environment variables:
+  SAP_AGENT_URL        = http://<host>:<port>
+  ORACLE_AGENT_URL     = http://<host>:<port>
+  SALESFORCE_AGENT_URL = http://<host>:<port>
+  AWS_AGENT_URL        = http://<host>:<port>
+  GCP_AGENT_URL        = http://<host>:<port>
 """
+import os
 from app import app
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

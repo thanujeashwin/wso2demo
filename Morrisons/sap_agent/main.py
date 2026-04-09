@@ -1,11 +1,12 @@
 """
-WSO2 Agent Manager Start Command: python main.py
-WSO2 Agent Manager Port:         8001
-WSO2 Agent Manager Base Path:    /
-WSO2 OpenAPI Spec Path:          /openapi.yaml  (or use the file openapi.yaml)
+WSO2 Agent Manager entry point – SAP ERP Agent
+Port is read from the PORT environment variable (set by Agent Manager).
+Falls back to 8001 for local development.
 """
+import os
 from app import app
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)
