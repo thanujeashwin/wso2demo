@@ -4,10 +4,10 @@ from datetime import date, timedelta
 from langchain_core.tools import tool
 
 CUSTOMERS = {
-    "CUST-000303": {"name": "Sarah Mitchell",  "tier": "Gold",     "points": 4821, "spend_ytd": 3240.50},
-    "CUST-001122": {"name": "James Patel",     "tier": "Silver",   "points": 1205, "spend_ytd":  980.00},
-    "CUST-002847": {"name": "Emma Thompson",   "tier": "Platinum", "points": 9830, "spend_ytd": 7120.75},
-    "CUST-003391": {"name": "David O'Brien",   "tier": "Bronze",   "points":  320, "spend_ytd":  210.25},
+    "CUST-100142": {"name": "Sarah Thompson",  "tier": "Gold",     "points": 4820, "spend_ytd": 3180.50},
+    "CUST-100256": {"name": "James Patel",     "tier": "Silver",   "points": 1205, "spend_ytd":  980.00},
+    "CUST-100389": {"name": "Emma Clarke",     "tier": "Platinum", "points": 9830, "spend_ytd": 7120.75},
+    "CUST-100471": {"name": "David O'Brien",   "tier": "Bronze",   "points":  320, "spend_ytd":  210.25},
 }
 
 SUPPLIER_ACCOUNTS = {
@@ -27,7 +27,7 @@ def get_customer_profile(customer_id: str, include_purchase_history: bool = Fals
     Returns loyalty tier, points balance, and YTD spend.
 
     Args:
-        customer_id: Morrisons customer ID, e.g. CUST-000303, CUST-001122, CUST-002847, CUST-003391
+        customer_id: Morrisons customer ID, e.g. CUST-100142, CUST-100256, CUST-100389, CUST-100471
         include_purchase_history: Whether to include recent purchase summary (default False)
     """
     if customer_id not in CUSTOMERS:
@@ -58,7 +58,7 @@ def generate_personalised_offer(customer_id: str, channel: str = "app",
     Tailors discount and product recommendation to the customer's loyalty tier.
 
     Args:
-        customer_id: Morrisons customer ID, e.g. CUST-000303
+        customer_id: Morrisons customer ID, e.g. CUST-100142
         channel: Delivery channel – app, email, or in-store (default: app)
         category: Optional product category to target, e.g. Fresh Meat, Dairy
     """
@@ -86,7 +86,7 @@ def update_customer_segment(customer_id: str, segment: str, reason: str = "") ->
     Assign a Morrisons customer to a Salesforce marketing segment.
 
     Args:
-        customer_id: Morrisons customer ID, e.g. CUST-000303
+        customer_id: Morrisons customer ID, e.g. CUST-100142
         segment: Segment name – HIGH_VALUE, AT_RISK_CHURN, FREQUENT_BUYER, LAPSED, NEW_CUSTOMER
         reason: Optional reason for segment change
     """
