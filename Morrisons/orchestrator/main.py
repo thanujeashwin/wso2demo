@@ -1,14 +1,7 @@
 """
-WSO2 Agent Manager entry point – Orchestrator
-Port is read from the PORT environment variable (set by Agent Manager).
-Falls back to 8000 for local development.
-
-Sub-agent URLs are configured via environment variables:
-  SAP_AGENT_URL        = http://<host>:<port>
-  ORACLE_AGENT_URL     = http://<host>:<port>
-  SALESFORCE_AGENT_URL = http://<host>:<port>
-  AWS_AGENT_URL        = http://<host>:<port>
-  GCP_AGENT_URL        = http://<host>:<port>
+WSO2 Agent Manager entry point — Orchestrator
+Chat Agent type always routes to port 8000 inside the container.
+PORT env var is respected if set; defaults to 8000.
 """
 import os
 from app import app
