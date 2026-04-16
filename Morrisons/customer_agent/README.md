@@ -31,7 +31,7 @@ Customer (Browser)
         │
         ▼
 ┌──────────────────────────────────────────┐
-│           FastAPI  app.py  :8006         │
+│           FastAPI  app.py  :8000         │
 │                                          │
 │  ChatRequest { message, session_id,      │
 │                context{customer_id} }    │
@@ -74,7 +74,7 @@ All other agents in this demo use **LangGraph** for their ReAct loop. This agent
 | LLM abstraction | LangChain `BaseChatModel` | Plain Python `DemoLLM` class |
 | Tool wrapping | `@tool` decorator (LangChain) | Plain functions + `@trace_tool` decorator |
 | Traceloop | Auto-instrumented via LangGraph | Manual OTLP span emission via `traces.py` |
-| Port | 8001–8005 | 8006 |
+| Port | 8001–8005 | 8000 |
 
 ---
 
@@ -218,7 +218,7 @@ Response:
   "reply":      "📦 Order ORD-9002 — Out for delivery\n\nCustomer: Emma Johnson\n...",
   "session_id": "sess-abc123",
   "agent":      "customer_agent",
-  "port":       8006
+  "port":       8000
 }
 ```
 
@@ -242,12 +242,12 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open **http://localhost:8006** for the chat UI.
+Open **http://localhost:8000** for the chat UI.
 
 To call the API directly:
 
 ```bash
-curl -X POST http://localhost:8006/chat \
+curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Show me dairy products",
@@ -308,13 +308,13 @@ When deployed to WSO2 Agent Manager, stdout is captured by the platform's Tracel
 
 ### Agent Type
 
-`Chat Agent` — standard chat interface with `POST /chat` on port 8006
+`Chat Agent` — standard chat interface with `POST /chat` on port 8000
 
 ### Environment Variables
 
 | Key | Value | Secret |
 |---|---|---|
-| `PORT` | `8006` | ☐ |
+| `PORT` | `8000` | ☐ |
 
 > No API key needed — the agent runs fully in demo mode.
 

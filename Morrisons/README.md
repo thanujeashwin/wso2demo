@@ -15,7 +15,7 @@ A suite of seven AI agents built for **WSO2 Agent Manager**, demonstrating a mul
 ┌──────────────────┐        ┌────────────────────────┐
 │ Customer Agent   │        │      Orchestrator       │
 │  POST /chat      │        │    POST /chat  :8000    │
-│  :8006           │        │    LangGraph ReAct      │
+│  :8000           │        │    LangGraph ReAct      │
 │  Custom ReAct    │        └──┬────┬────┬────┬──┬───┘
 │  Mock OTel spans │           │    │    │    │  │
 └──────────────────┘           │    │    │    │  │
@@ -546,7 +546,7 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 
 | Key | Value | Secret |
 |---|---|---|
-| `PORT` | `8006` | ☐ |
+| `PORT` | `8000` | ☐ |
 
 > No API key needed — the agent runs fully in demo mode with mock OTLP spans.
 
@@ -565,7 +565,7 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
   "reply": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
   "session_id": "demo-session-1",
   "agent": "customer_agent",
-  "port": 8006
+  "port": 8000
 }
 ```
 
@@ -598,8 +598,8 @@ python oracle_agent/main.py &     # port 8002
 python salesforce_agent/main.py & # port 8003
 python aws_agent/main.py &        # port 8004
 python gcp_agent/main.py &        # port 8005
-python customer_agent/app.py &    # port 8006  (open http://localhost:8006 for chat UI)
-python orchestrator/main.py       # port 8000 (foreground)
+python customer_agent/app.py &    # port 8000  — each agent uses :8000 inside its own container
+python orchestrator/main.py       # port 8000  — when running locally, use different ports via PORT env var
 ```
 
 ---
@@ -627,7 +627,7 @@ Then set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the agent's environment. The
 wso2demo/
 └── Morrisons/
     ├── README.md
-    ├── customer_agent/         # Customer shopping agent (port 8006) ← NEW
+    ├── customer_agent/         # Customer shopping agent (port 8000) ← NEW
     │   ├── app.py              # FastAPI app + /chat endpoint
     │   ├── agent.py            # Custom ReAct loop (no LangGraph) + DemoLLM
     │   ├── tools.py            # browse_products, check_stock, place_order, track_order

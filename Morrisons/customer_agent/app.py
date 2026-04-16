@@ -74,7 +74,7 @@ class ChatResponse(BaseModel):
     reply: str
     session_id: str
     agent: str = "customer_agent"
-    port: int = 8006
+    port: int = 8000
 
 
 # ---------------------------------------------------------------------------
@@ -143,4 +143,4 @@ def chat(request: ChatRequest) -> ChatResponse:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app:app", host="0.0.0.0", port=8006, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
