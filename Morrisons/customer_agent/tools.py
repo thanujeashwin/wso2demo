@@ -20,7 +20,7 @@ from demo_data import (
     products_by_category,
     next_order_id,
 )
-from traces import tracer, trace_tool
+from traces import trace_tool
 
 
 # ---------------------------------------------------------------------------
