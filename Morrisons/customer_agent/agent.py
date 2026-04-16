@@ -412,24 +412,54 @@ class DemoLLM:
 
 
 # ---------------------------------------------------------------------------
-# LLM selection — auto-detected at module load time
+# LLM selection — lazy, resolved on first request
 # ---------------------------------------------------------------------------
 
-def _build_llm() -> GeminiLLM | DemoLLM:
+_llm_instance: GeminiLLM | DemoLLM | None = None
+
+
+def _get_llm() -> GeminiLLM | DemoLLM:
+    """
+    Return the active LLM, initialising it on first call.
+    Lazy init means a transient startup failure (e.g. google-genai not yet
+    installed when the module loads) won't permanently lock us to DemoLLM —
+    the next request will retry.
+    """
+    global _llm_instance
+    if _llm_instance is not None:
+        return _llm_instance
+
     url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL", "").strip()
     apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "").strip()
+
     if url and apikey:
         try:
-            llm = GeminiLLM()
-            logger.info("Using GeminiLLM")
-            return llm
+            _llm_instance = GeminiLLM()
+            logger.info("LLM: GeminiLLM initialised (model=%s)", _llm_instance.GEMINI_MODEL)
+            return _llm_instance
         except Exception as exc:
-            logger.warning("GeminiLLM init failed (%s); falling back to DemoLLM", exc)
-    logger.info("Using DemoLLM (no Gemini env vars found)")
-    return DemoLLM()
+            # Log at ERROR so it appears clearly in WSO2 Agent Manager runtime logs
+            logger.error(
+                "GeminiLLM init FAILED — falling back to DemoLLM.\n"
+                "  PRODUCTION_GEMINI_LLM_URL    = %s\n"
+                "  PRODUCTION_GEMINI_LLM_API_KEY = %s\n"
+                "  Exception: %s: %s",
+                url,
+                apikey[:6] + "…" if len(apikey) > 6 else "(empty)",
+                type(exc).__name__,
+                exc,
+            )
+    else:
+        logger.warning(
+            "LLM: Gemini env vars not set — using DemoLLM.\n"
+            "  PRODUCTION_GEMINI_LLM_URL    = %r\n"
+            "  PRODUCTION_GEMINI_LLM_API_KEY = %r",
+            url or "(not set)",
+            "(not set)" if not apikey else "(set)",
+        )
 
-
-llm = _build_llm()
+    _llm_instance = DemoLLM()
+    return _llm_instance
 
 
 # ---------------------------------------------------------------------------
@@ -456,11 +486,12 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
         "customer.id":     customer_id,
         "input.message":   message[:256],
         "agent.type":      "customer_agent",
-        "llm.backend":     llm.model_name,
         "react.max_steps": MAX_STEPS,
     }
 
-    with start_span("agent.chat", attributes=root_attrs) as root_span:
+    llm = _get_llm()
+
+    with start_span("agent.chat", attributes={**root_attrs, "llm.backend": llm.model_name}) as root_span:
 
         for step in range(1, MAX_STEPS + 1):
 
