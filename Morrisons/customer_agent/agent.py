@@ -20,7 +20,7 @@ import re
 from typing import Any
 
 from tools import TOOL_REGISTRY
-from traces import tracer, trace_llm_call, trace_agent_step
+from traces import start_span, trace_llm_call, trace_agent_step
 
 logger = logging.getLogger("customer_agent.agent")
 
@@ -460,7 +460,7 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
         "react.max_steps": MAX_STEPS,
     }
 
-    with tracer.start_span("agent:chat", attributes=root_attrs) as root_span:
+    with start_span("agent.chat", attributes=root_attrs) as root_span:
 
         for step in range(1, MAX_STEPS + 1):
 
@@ -471,7 +471,6 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
                 llm.model_name,
                 prompt=f"User: {message}",
                 response=f"Action: {tool_name}({json.dumps(tool_args, default=str)})",
-                span=root_span,
             )
             logger.info("[step %d] Think → %s(%s)", step, tool_name, tool_args)
 
@@ -489,14 +488,14 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
                     observation = json.dumps({"status": "error", "message": str(exc)})
 
             obs_dict = _safe_json(observation)
-            trace_agent_step(step, tool_name, observation, span=root_span)
+            trace_agent_step(step, tool_name, observation)
             logger.info("[step %d] Observe → %s", step, observation[:120])
 
             # ── RESPOND ───────────────────────────────────────────────────
             if obs_dict.get("status") in ("ok", "no_results") or step == MAX_STEPS:
                 reply = llm.synthesise(conversation, obs_dict)
-                root_span.attributes["output.chars"]        = len(reply)
-                root_span.attributes["react.steps_taken"]   = step
+                root_span.set_attribute("output.chars",      len(reply))
+                root_span.set_attribute("react.steps_taken", step)
                 return reply
 
             # Error on this step — append and retry
