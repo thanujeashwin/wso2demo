@@ -1,39 +1,47 @@
 # Morrisons AI Agent Demo — WSO2 Agent Manager
 
-A suite of six AI agents built for **WSO2 Agent Manager**, demonstrating a multi-agent architecture for Morrisons supermarkets (UK). The agents simulate a real enterprise AI platform spanning SAP ERP, Oracle Finance, Salesforce CRM, AWS, and GCP — emitting full observability traces via Traceloop on every request.
+A suite of seven AI agents built for **WSO2 Agent Manager**, demonstrating a multi-agent architecture for Morrisons supermarkets (UK). The agents simulate a real enterprise AI platform spanning SAP ERP, Oracle Finance, Salesforce CRM, AWS, GCP, and a customer-facing shopping assistant — emitting full observability traces via Traceloop on every request.
 
-> **Demo mode:** All agents use a `DemoLLM` (no API key required). The full LangGraph ReAct pipeline runs on every request so WSO2 Agent Manager emits traces exactly as it would with a production LLM.
+> **Demo mode:** All agents use a `DemoLLM` (no API key required). The full ReAct pipeline runs on every request so WSO2 Agent Manager emits traces exactly as it would with a production LLM.
 
 ---
 
 ## Architecture
 
 ```
-                        ┌──────────────────────────────────────┐
-                        │         WSO2 Agent Manager           │
-                        │   (Traceloop auto-instrumentation)   │
-                        └────────────────┬─────────────────────┘
-                                         │
-                             ┌───────────▼───────────┐
-                             │     Orchestrator       │
-                             │   POST /chat  :8000    │
-                             │  LangGraph ReAct       │
-                             └──┬────┬────┬────┬──┬──┘
-                                │    │    │    │  │
-               ┌────────────────┘    │    │    │  └──────────────────┐
-               │         ┌───────────┘    └────────────┐             │
-               ▼         ▼                             ▼             ▼
-     ┌──────────────┐ ┌──────────────┐     ┌──────────────┐ ┌──────────────┐
-     │  SAP ERP     │ │ Oracle ERP   │     │    AWS       │ │    GCP       │
-     │  :8001       │ │  :8002       │     │    :8004     │ │    :8005     │
-     └──────────────┘ └──────────────┘     └──────────────┘ └──────────────┘
-                             ┌──────────────┐
-                             │  Salesforce  │
-                             │    :8003     │
-                             └──────────────┘
+  Customer (Browser)             Staff / Integrations
+        │                                │
+        ▼                                ▼
+┌──────────────────┐        ┌────────────────────────┐
+│ Customer Agent   │        │      Orchestrator       │
+│  POST /chat      │        │    POST /chat  :8000    │
+│  :8006           │        │    LangGraph ReAct      │
+│  Custom ReAct    │        └──┬────┬────┬────┬──┬───┘
+│  Mock OTel spans │           │    │    │    │  │
+└──────────────────┘           │    │    │    │  │
+        │                      │    │    │    │  │
+        │              ┌───────┘    │    │    │  └──────────────┐
+        │              │    ┌───────┘    └──────────┐           │
+        ▼              ▼    ▼                       ▼           ▼
+        │    ┌──────────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────┐
+        │    │  SAP ERP     │ │ Oracle ERP   │ │   AWS    │ │   GCP    │
+        │    │  :8001       │ │  :8002       │ │  :8004   │ │  :8005   │
+        │    └──────────────┘ └──────────────┘ └──────────┘ └──────────┘
+        │                  ┌──────────────┐
+        │                  │  Salesforce  │
+        │                  │    :8003     │
+        │                  └──────────────┘
+        │
+        ▼
+┌──────────────────────────────────┐
+│         WSO2 Agent Manager       │
+│  (Traceloop / OTLP tracing for   │
+│   all agents — LangGraph + custom│
+│   ReAct spans unified in one UI) │
+└──────────────────────────────────┘
 ```
 
-Each agent exposes a **FastAPI `/chat` endpoint** and runs a **LangGraph ReAct graph** (`agent node ↔ tools node`). The orchestrator delegates to sub-agents via HTTP.
+Each agent exposes a **FastAPI `/chat` endpoint**. The five back-office agents use a **LangGraph ReAct graph**. The customer agent uses a **custom ReAct loop** (no LangGraph) — demonstrating that WSO2 Agent Manager is framework-agnostic.
 
 ---
 
@@ -504,9 +512,68 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 ---
 
+### Agent 7 — Customer Agent
+
+Customer-facing shopping assistant. See [customer_agent/README.md](customer_agent/README.md) for full detail.
+
+**Agent Details**
+
+| Field | Value |
+|---|---|
+| Name | `Morrisons Customer Agent` |
+| Description | `Customer-facing agent for browsing products, checking stock, placing orders and tracking deliveries` |
+
+**Repository Details**
+
+| Field | Value |
+|---|---|
+| GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
+| Branch | `main` |
+| Project Path | `Morrisons/customer_agent` |
+
+**Build Details**
+
+| Field | Value |
+|---|---|
+| Language | `Python` |
+| Start Command | `python app.py` |
+| Language Version | `3.11` |
+| Enable auto instrumentation | ✅ checked |
+
+**Agent Type:** `Chat Agent`
+
+**Environment Variables:**
+
+| Key | Value | Secret |
+|---|---|---|
+| `PORT` | `8006` | ☐ |
+
+> No API key needed — the agent runs fully in demo mode with mock OTLP spans.
+
+**Example `/chat` request:**
+```json
+{
+  "message": "I want to order 2 PROD-001 and track my last delivery",
+  "session_id": "demo-session-1",
+  "context": { "customer_id": "CUST-5001" }
+}
+```
+
+**Example response:**
+```json
+{
+  "reply": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
+  "session_id": "demo-session-1",
+  "agent": "customer_agent",
+  "port": 8006
+}
+```
+
+---
+
 ### Request / Response schema (all agents)
 
-All six agents use the same Chat Agent interface:
+All seven agents use the same Chat Agent interface:
 
 ```
 POST /chat
@@ -531,6 +598,7 @@ python oracle_agent/main.py &     # port 8002
 python salesforce_agent/main.py & # port 8003
 python aws_agent/main.py &        # port 8004
 python gcp_agent/main.py &        # port 8005
+python customer_agent/app.py &    # port 8006  (open http://localhost:8006 for chat UI)
 python orchestrator/main.py       # port 8000 (foreground)
 ```
 
@@ -559,6 +627,14 @@ Then set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the agent's environment. The
 wso2demo/
 └── Morrisons/
     ├── README.md
+    ├── customer_agent/         # Customer shopping agent (port 8006) ← NEW
+    │   ├── app.py              # FastAPI app + /chat endpoint
+    │   ├── agent.py            # Custom ReAct loop (no LangGraph) + DemoLLM
+    │   ├── tools.py            # browse_products, check_stock, place_order, track_order
+    │   ├── demo_data.py        # Mock product catalogue, stock, customers, orders
+    │   ├── traces.py           # Mock OTLP span emitter (stdout → WSO2 collector)
+    │   ├── requirements.txt
+    │   └── static/index.html   # WSO2-themed chat UI
     ├── orchestrator/           # Master orchestrator (port 8000)
     │   ├── app.py              # FastAPI app + /chat endpoint
     │   ├── config.py           # Pydantic settings (LLM config, sub-agent URLs)
