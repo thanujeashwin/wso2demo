@@ -562,10 +562,9 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 **Example response:**
 ```json
 {
-  "reply": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
+  "response": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
   "session_id": "demo-session-1",
-  "agent": "customer_agent",
-  "port": 8000
+  "agent": "customer_agent"
 }
 ```
 

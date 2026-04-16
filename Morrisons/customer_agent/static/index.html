@@ -459,8 +459,8 @@ Try one of the demo scenarios on the left, or just ask me anything!
       const data = await res.json();
 
       typing.style.display = "none";
-      appendMessage("agent", formatMarkdown(data.reply));
-      addTrace("ok",   `chat OK — ${data.reply.length} chars`);
+      appendMessage("agent", formatMarkdown(data.response));
+      addTrace("ok",   `chat OK — ${data.response.length} chars`);
       addTrace("tool", `agent=${data.agent} session=${data.session_id}`);
 
     } catch (err) {

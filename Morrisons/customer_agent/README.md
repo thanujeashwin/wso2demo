@@ -215,10 +215,9 @@ Request:
 
 Response:
 {
-  "reply":      "📦 Order ORD-9002 — Out for delivery\n\nCustomer: Emma Johnson\n...",
+  "response":   "📦 Order ORD-9002 — Out for delivery\n\nCustomer: Emma Johnson\n...",
   "session_id": "sess-abc123",
-  "agent":      "customer_agent",
-  "port":       8000
+  "agent":      "customer_agent"
 }
 ```
 
