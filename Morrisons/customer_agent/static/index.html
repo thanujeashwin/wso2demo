@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Morrisons Customer Agent — WSO2 Demo</title>
+<style>
+  /* ── Reset ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Palette (WSO2 orange) ── */
+  :root {
+    --orange:   #FF7300;
+    --black:    #000000;
+    --navy:     #212A32;
+    --slate:    #465867;
+    --gray:     #979593;
+    --ltGray:   #B7B7B7;
+    --vltGray:  #E5E5E5;
+    --offWhite: #F7F8FB;
+    --white:    #FFFFFF;
+  }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--navy);
+    color: var(--white);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--black);
+    border-top: 4px solid var(--orange);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .logo-badge {
+    background: var(--orange);
+    color: var(--white);
+    font-weight: 900;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  header h1 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--white);
+  }
+  header .sub {
+    font-size: 11px;
+    color: var(--gray);
+    margin-top: 1px;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #2ecc71;
+    margin-left: auto;
+    box-shadow: 0 0 6px #2ecc71;
+  }
+
+  /* ── Main layout ── */
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  aside {
+    width: 230px;
+    background: #151c22;
+    border-right: 1px solid #2a3540;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .aside-section {
+    padding: 14px 16px 8px;
+  }
+  .aside-title {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 10px;
+  }
+  .scenario-btn {
+    display: block;
+    width: 100%;
+    background: #1e2b35;
+    border: 1px solid #2a3a48;
+    color: var(--ltGray);
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-size: 11.5px;
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: background 0.15s, border-color 0.15s;
+    line-height: 1.4;
+  }
+  .scenario-btn:hover {
+    background: #253545;
+    border-color: var(--orange);
+    color: var(--white);
+  }
+  .scenario-btn .sc-tag {
+    display: block;
+    font-size: 9px;
+    color: var(--orange);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 2px;
+  }
+
+  .tools-list {
+    font-size: 11px;
+    color: var(--ltGray);
+  }
+  .tool-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 0;
+    border-bottom: 1px solid #1e2b35;
+  }
+  .tool-dot {
+    width: 6px; height: 6px;
+    background: var(--orange);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .trace-panel {
+    flex: 1;
+    font-size: 10px;
+    color: #5a7a5a;
+    padding: 0;
+    overflow-y: auto;
+  }
+  .trace-entry {
+    padding: 4px 16px;
+    border-bottom: 1px solid #1a2530;
+    font-family: 'Courier New', monospace;
+    line-height: 1.5;
+  }
+  .trace-entry .t-ok    { color: #2ecc71; }
+  .trace-entry .t-err   { color: #e74c3c; }
+  .trace-entry .t-tool  { color: #f39c12; }
+  .trace-entry .t-llm   { color: #3498db; }
+  .trace-entry .t-time  { color: #5a7a9a; }
+
+  /* ── Chat area ── */
+  .chat-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #messages::-webkit-scrollbar { width: 5px; }
+  #messages::-webkit-scrollbar-thumb { background: #2a3a48; border-radius: 3px; }
+
+  .msg {
+    max-width: 76%;
+    line-height: 1.55;
+    font-size: 13.5px;
+  }
+  .msg-user {
+    align-self: flex-end;
+    background: var(--orange);
+    color: var(--white);
+    padding: 10px 16px;
+    border-radius: 14px 14px 3px 14px;
+  }
+  .msg-agent {
+    align-self: flex-start;
+    background: #1e2b35;
+    border: 1px solid #2a3a48;
+    color: #d5e0ea;
+    padding: 12px 16px;
+    border-radius: 3px 14px 14px 14px;
+    white-space: pre-wrap;
+  }
+  .msg-agent strong { color: var(--white); }
+  .msg-agent em     { color: var(--orange); font-style: normal; }
+
+  .msg-meta {
+    font-size: 10px;
+    color: var(--gray);
+    margin-top: 4px;
+  }
+  .msg-user + .msg-meta { text-align: right; }
+
+  .typing-indicator {
+    align-self: flex-start;
+    background: #1e2b35;
+    border: 1px solid #2a3a48;
+    padding: 10px 16px;
+    border-radius: 3px 14px 14px 14px;
+    display: none;
+  }
+  .dot { display: inline-block; width: 7px; height: 7px; background: var(--orange);
+         border-radius: 50%; animation: blink 1.2s infinite; margin: 0 2px; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+  /* ── Input bar ── */
+  .input-bar {
+    background: #111820;
+    border-top: 1px solid #2a3a48;
+    padding: 14px 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  #msgInput {
+    flex: 1;
+    background: #1a2530;
+    border: 1px solid #2a3a48;
+    border-radius: 8px;
+    color: var(--white);
+    padding: 10px 14px;
+    font-size: 13.5px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #msgInput:focus { border-color: var(--orange); }
+  #msgInput::placeholder { color: var(--gray); }
+
+  .send-btn {
+    background: var(--orange);
+    border: none;
+    border-radius: 8px;
+    color: var(--white);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .send-btn:hover    { background: #e06600; }
+  .send-btn:disabled { background: #6b4020; cursor: default; }
+
+  .customer-select {
+    background: #1a2530;
+    border: 1px solid #2a3a48;
+    color: var(--ltGray);
+    border-radius: 6px;
+    padding: 9px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* ── Footer ── */
+  footer {
+    background: var(--black);
+    text-align: center;
+    font-size: 9.5px;
+    color: var(--gray);
+    padding: 5px;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<header>
+  <div class="logo-badge">WSO2</div>
+  <div>
+    <h1>Morrisons Customer Agent</h1>
+    <div class="sub">Port 8006  ·  Custom ReAct  ·  FastAPI  ·  Traceloop spans</div>
+  </div>
+  <div class="status-dot" title="Agent online"></div>
+</header>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main>
+
+  <!-- ── Sidebar ── -->
+  <aside>
+    <div class="aside-section">
+      <div class="aside-title">Demo Scenarios</div>
+
+      <button class="scenario-btn" onclick="sendScenario('browse')">
+        <span class="sc-tag">Browse</span>
+        Show me what products you have
+      </button>
+      <button class="scenario-btn" onclick="sendScenario('dairy')">
+        <span class="sc-tag">Category</span>
+        Show dairy products
+      </button>
+      <button class="scenario-btn" onclick="sendScenario('stock')">
+        <span class="sc-tag">Stock Check</span>
+        How many PROD-005 are available?
+      </button>
+      <button class="scenario-btn" onclick="sendScenario('order')">
+        <span class="sc-tag">Place Order</span>
+        Order 2 PROD-001 and 1 PROD-002
+      </button>
+      <button class="scenario-btn" onclick="sendScenario('track')">
+        <span class="sc-tag">Track Order</span>
+        Track my order ORD-9002
+      </button>
+      <button class="scenario-btn" onclick="sendScenario('profile')">
+        <span class="sc-tag">My Account</span>
+        Show my loyalty points and profile
+      </button>
+    </div>
+
+    <div class="aside-section">
+      <div class="aside-title">Available Tools</div>
+      <div class="tools-list" id="toolsList">
+        <div class="tool-item"><span class="tool-dot"></span>browse_products</div>
+        <div class="tool-item"><span class="tool-dot"></span>check_stock</div>
+        <div class="tool-item"><span class="tool-dot"></span>place_order</div>
+        <div class="tool-item"><span class="tool-dot"></span>track_order</div>
+        <div class="tool-item"><span class="tool-dot"></span>get_customer_profile</div>
+      </div>
+    </div>
+
+    <div class="aside-section" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+      <div class="aside-title">OTel Trace Log</div>
+      <div class="trace-panel" id="tracePanel">
+        <div class="trace-entry" style="color:#3a5a7a">Waiting for spans…</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Chat column ── -->
+  <div class="chat-col">
+    <div id="messages">
+      <div class="msg msg-agent">
+        👋 <strong>Welcome to Morrisons!</strong>
+
+I'm your personal shopping assistant. I can help you:
+
+  • <em>Browse</em> our product catalogue
+  • <em>Check stock</em> levels before you buy
+  • <em>Place orders</em> for home delivery
+  • <em>Track</em> your existing deliveries
+
+Try one of the demo scenarios on the left, or just ask me anything!
+      </div>
+    </div>
+
+    <div class="typing-indicator" id="typing">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+
+    <div class="input-bar">
+      <select class="customer-select" id="customerSelect" title="Active customer">
+        <option value="CUST-5001">Emma Johnson (Gold)</option>
+        <option value="CUST-5002">Liam Thompson (Silver)</option>
+        <option value="CUST-5003">Sophie Williams (Bronze)</option>
+      </select>
+      <input id="msgInput" type="text" placeholder="Ask me anything about products, orders, delivery…"
+             autocomplete="off" />
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+</main>
+
+<footer>Morrisons Demo  ·  WSO2 Agent Manager  ·  Customer Agent v1.0  ·  All data is simulated</footer>
+
+<script>
+  const SCENARIOS = {
+    browse:  "Show me what products you have",
+    dairy:   "Show me dairy products",
+    stock:   "How many PROD-005 are in stock?",
+    order:   "I'd like to order 2 PROD-001 and 1 PROD-002",
+    track:   "Track my order ORD-9002",
+    profile: "Show my profile and loyalty points",
+  };
+
+  let sessionId = "sess-" + Math.random().toString(36).slice(2, 10);
+  let busy = false;
+
+  // ── Fetch tools list from API ──────────────────────────────────────────
+  async function loadTools() {
+    try {
+      const r = await fetch("/tools");
+      const data = await r.json();
+      if (data.tools) {
+        document.getElementById("toolsList").innerHTML = data.tools.map(t =>
+          `<div class="tool-item"><span class="tool-dot"></span>${t.name}</div>`
+        ).join("");
+      }
+    } catch (_) {}
+  }
+  loadTools();
+
+  // ── Scenario shortcut ─────────────────────────────────────────────────
+  function sendScenario(key) {
+    const msg = SCENARIOS[key];
+    if (msg) {
+      document.getElementById("msgInput").value = msg;
+      sendMessage();
+    }
+  }
+
+  // ── Main send ─────────────────────────────────────────────────────────
+  async function sendMessage() {
+    if (busy) return;
+    const input = document.getElementById("msgInput");
+    const msg   = input.value.trim();
+    if (!msg) return;
+
+    input.value = "";
+    busy = true;
+    document.getElementById("sendBtn").disabled = true;
+
+    appendMessage("user", msg);
+
+    const typing = document.getElementById("typing");
+    typing.style.display = "block";
+    scrollToBottom();
+
+    const customer = document.getElementById("customerSelect").value;
+
+    addTrace("llm", "Think → routing message…");
+
+    try {
+      const res = await fetch("/chat", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message:    msg,
+          session_id: sessionId,
+          context:    { customer_id: customer, user_id: customer },
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      typing.style.display = "none";
+      appendMessage("agent", formatMarkdown(data.reply));
+      addTrace("ok",   `chat OK — ${data.reply.length} chars`);
+      addTrace("tool", `agent=${data.agent} session=${data.session_id}`);
+
+    } catch (err) {
+      typing.style.display = "none";
+      appendMessage("agent", "⚠️ Could not connect to the agent. Make sure it's running on port 8006.");
+      addTrace("err", "Request failed: " + err.message);
+    }
+
+    busy = false;
+    document.getElementById("sendBtn").disabled = false;
+    input.focus();
+  }
+
+  // ── Enter key ─────────────────────────────────────────────────────────
+  document.getElementById("msgInput").addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // ── DOM helpers ───────────────────────────────────────────────────────
+  function appendMessage(role, html) {
+    const msgs = document.getElementById("messages");
+    const div  = document.createElement("div");
+    div.className = role === "user" ? "msg msg-user" : "msg msg-agent";
+    div.innerHTML = html;
+    msgs.appendChild(div);
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    const msgs = document.getElementById("messages");
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function addTrace(type, text) {
+    const panel = document.getElementById("tracePanel");
+    // Remove placeholder
+    const placeholder = panel.querySelector("[style*='3a5a7a']");
+    if (placeholder) placeholder.remove();
+
+    const entry = document.createElement("div");
+    entry.className = "trace-entry";
+    const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    const cls = { ok: "t-ok", err: "t-err", tool: "t-tool", llm: "t-llm" }[type] || "";
+    entry.innerHTML = `<span class="t-time">${now}</span> <span class="${cls}">${escHtml(text)}</span>`;
+    panel.appendChild(entry);
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ── Minimal markdown renderer ─────────────────────────────────────────
+  function formatMarkdown(text) {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g, "<em>$1</em>")
+      .replace(/`(.*?)`/g, "<code>$1</code>")
+      .replace(/\n/g, "<br>");
+  }
+</script>
+</body>
+</html>
