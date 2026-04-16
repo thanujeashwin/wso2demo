@@ -536,7 +536,7 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 | Field | Value |
 |---|---|
 | Language | `Python` |
-| Start Command | `python app.py` |
+| Start Command | `python main.py` |
 | Language Version | `3.11` |
 | Enable auto instrumentation | ✅ checked |
 
@@ -598,7 +598,7 @@ python oracle_agent/main.py &     # port 8002
 python salesforce_agent/main.py & # port 8003
 python aws_agent/main.py &        # port 8004
 python gcp_agent/main.py &        # port 8005
-python customer_agent/app.py &    # port 8000  — each agent uses :8000 inside its own container
+python customer_agent/main.py &   # port 8000  — each agent uses :8000 inside its own container
 python orchestrator/main.py       # port 8000  — when running locally, use different ports via PORT env var
 ```
 

@@ -239,7 +239,7 @@ Returns the full OpenAPI-style tool schema for all 5 registered tools.
 ```bash
 cd Morrisons/customer_agent
 pip install -r requirements.txt
-python app.py
+python main.py
 ```
 
 Open **http://localhost:8000** for the chat UI.
@@ -302,7 +302,7 @@ When deployed to WSO2 Agent Manager, stdout is captured by the platform's Tracel
 | Field | Value |
 |---|---|
 | Language | `Python` |
-| Start Command | `python app.py` |
+| Start Command | `python main.py` |
 | Language Version | `3.11` |
 | Enable auto instrumentation | ✅ checked |
 
