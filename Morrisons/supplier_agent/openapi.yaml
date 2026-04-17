@@ -1,0 +1,150 @@
+openapi: 3.1.0
+info:
+  title: Morrisons Supplier Agent
+  description: >
+    Supplier management agent for Morrisons. Triggered asynchronously by the
+    Inventory Agent when a product falls below its reorder threshold. Looks up
+    the preferred supplier for the product, enforces minimum order quantities,
+    and raises a purchase order. Returns PO reference, supplier name, expected
+    delivery date, and total cost. All tool calls emit OpenTelemetry spans
+    visible in WSO2 Agent Manager traces.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /chat:
+    post:
+      summary: Send a supplier or purchase-order request to the agent
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              reorder_product:
+                summary: Raise a purchase order for a low-stock product
+                value:
+                  message: >
+                    Stock low for PROD-001. Current available: 3 units, reorder point: 10.
+                    Raise a purchase order with the preferred supplier.
+                  session_id: "reorder-PROD-001"
+                  context: {}
+              lookup_supplier:
+                summary: Look up supplier details for a product
+                value:
+                  message: "Who is the preferred supplier for PROD-004 and what is their lead time?"
+                  session_id: "supplier-lookup-1"
+                  context: {}
+              large_reorder:
+                summary: Raise a PO for a specific quantity
+                value:
+                  message: "Raise a purchase order for 500 units of PROD-002 from the preferred supplier."
+                  session_id: "reorder-PROD-002"
+                  context: {}
+      responses:
+        '200':
+          description: Supplier agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                po_raised:
+                  summary: Purchase order raised successfully
+                  value:
+                    response: >
+                      Purchase order PO-0023 raised with Müller Dairy UK for 200 units of PROD-001
+                      (Morrisons British Whole Milk 4pt) at £0.68/unit — total £136.00.
+                      Expected delivery: 2026-04-20 (2-day lead time).
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        '200':
+          description: Supplier agent is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /tools:
+    get:
+      summary: List available tools
+      operationId: listTools
+      responses:
+        '200':
+          description: Tool registry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolsResponse'
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+      properties:
+        message:
+          type: string
+          minLength: 1
+          description: >
+            Natural-language instruction. Typically a reorder notification from
+            the Inventory Agent containing a product ID and current stock level,
+            or an ad-hoc supplier query.
+        session_id:
+          type: string
+          description: Unique session / conversation identifier
+        context:
+          type: object
+          description: Optional context (passed through from the originating agent)
+          additionalProperties: true
+    ChatResponse:
+      type: object
+      required:
+        - response
+      properties:
+        response:
+          type: string
+          description: Agent response summarising the supplier actions taken
+        session_id:
+          type: string
+        agent:
+          type: string
+          example: supplier_agent
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        agent:
+          type: string
+          example: supplier_agent
+    ToolsResponse:
+      type: object
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolDefinition'
+    ToolDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+          enum:
+            - get_supplier_info
+            - raise_purchase_order
+        description:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true

@@ -1,0 +1,150 @@
+openapi: 3.1.0
+info:
+  title: Morrisons Warehouse Agent
+  description: >
+    Warehouse fulfilment agent for Morrisons. Triggered asynchronously by the
+    Customer Agent when an order is placed. Creates a pick-and-pack fulfilment
+    task, assigns it to an available warehouse picker, and tracks the task
+    through picking → packed → dispatched → delivered. All tool calls emit
+    OpenTelemetry spans visible in WSO2 Agent Manager traces.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /chat:
+    post:
+      summary: Send a warehouse fulfilment request to the agent
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              fulfil_order:
+                summary: Create fulfilment task for a new order
+                value:
+                  message: >
+                    New order placed. Create fulfilment task for order ORD-9004.
+                    Customer: Emma Johnson.
+                    Items: [{"product_id": "PROD-001", "quantity": 2}, {"product_id": "PROD-003", "quantity": 1}]
+                  session_id: "notify-ORD-9004"
+                  context: {}
+              dispatch_update:
+                summary: Update a task to dispatched
+                value:
+                  message: "Mark task TASK-0007 as dispatched"
+                  session_id: "dispatch-TASK-0007"
+                  context: {}
+              delivery_complete:
+                summary: Mark task as delivered
+                value:
+                  message: "Order delivered — update TASK-0007 status to delivered"
+                  session_id: "delivery-TASK-0007"
+                  context: {}
+      responses:
+        '200':
+          description: Warehouse agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                task_created:
+                  summary: Fulfilment task created and picker assigned
+                  value:
+                    response: >
+                      Fulfilment task TASK-0007 created for order ORD-9004 (2 line items).
+                      Picker Sarah Ahmed assigned — status: picking.
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        '200':
+          description: Warehouse agent is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /tools:
+    get:
+      summary: List available tools
+      operationId: listTools
+      responses:
+        '200':
+          description: Tool registry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolsResponse'
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+      properties:
+        message:
+          type: string
+          minLength: 1
+          description: >
+            Natural-language instruction. Typically an order notification from
+            the Customer Agent containing an order ID, customer name, and item
+            list, or a status update request.
+        session_id:
+          type: string
+          description: Unique session / conversation identifier
+        context:
+          type: object
+          description: Optional context (passed through from the originating agent)
+          additionalProperties: true
+    ChatResponse:
+      type: object
+      required:
+        - response
+      properties:
+        response:
+          type: string
+          description: Agent response summarising the fulfilment actions taken
+        session_id:
+          type: string
+        agent:
+          type: string
+          example: warehouse_agent
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        agent:
+          type: string
+          example: warehouse_agent
+    ToolsResponse:
+      type: object
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolDefinition'
+    ToolDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+          enum:
+            - create_fulfilment_task
+            - assign_picker
+            - update_dispatch_status
+        description:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
