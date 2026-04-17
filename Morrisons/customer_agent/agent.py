@@ -76,10 +76,12 @@ _AI_GATEWAY_INVOKE_URL = os.environ.get(
 
 class GatewayLLM:
     """
-    Calls the WSO2 AI gateway's Gemini endpoint using the OpenAI-compatible API.
+    Calls the WSO2 AI gateway's Gemini endpoint using raw httpx requests.
+    Uses the OpenAI-compatible /chat/completions format.
 
-    The gateway exposes POST /chat/completions at the invoke URL, handles
-    routing to Gemini, and applies guardrails/governance centrally.
+    Using httpx directly (not the openai SDK) gives full control over
+    request headers — the openai SDK always injects 'Authorization: Bearer'
+    which conflicts with WSO2's 'api-key' header authentication.
 
     Env vars:
       AI_GATEWAY_URL                — full invoke URL
@@ -98,25 +100,23 @@ class GatewayLLM:
     )
 
     def __init__(self):
-        from openai import OpenAI
+        import httpx
 
         apikey = os.environ.get(
             "PRODUCTION_GEMINI_LLM_API_KEY",
             "7c6a60ff94b1a9d9c12bd4b990ff240872c57e5e548c2ec66160dc8a45f4fe48",
         ).strip()
-        # openai SDK appends /chat/completions to base_url.
-        # WSO2 API Manager expects the key in the "api-key" header, not Bearer.
-        base = _AI_GATEWAY_INVOKE_URL.rstrip("/")
 
-        self._client    = OpenAI(
-            base_url=base,
-            api_key="not-used",           # required by SDK but ignored by WSO2
-            default_headers={"api-key": apikey},
-        )
+        self._endpoint  = _AI_GATEWAY_INVOKE_URL.rstrip("/") + "/chat/completions"
+        self._headers   = {
+            "Content-Type": "application/json",
+            "api-key":      apikey,
+        }
+        self._http      = httpx.Client(timeout=60.0)
         self._tools     = self._build_tools()
         self._last_call: dict | None = None
         self.model_name = f"GatewayLLM ({self.MODEL})"
-        logger.info("GatewayLLM initialised — model=%s  url=%s", self.MODEL, base)
+        logger.info("GatewayLLM initialised — model=%s  endpoint=%s", self.MODEL, self._endpoint)
 
     # ── public API ───────────────────────────────────────────────────────────
 
@@ -138,24 +138,25 @@ class GatewayLLM:
             {"role": "user", "content": user_msg},
         ]
 
-        response = self._client.chat.completions.create(
-            model=self.MODEL,
-            messages=messages,
-            tools=self._tools,
-            tool_choice="auto",
-        )
+        data = self._post({
+            "model":       self.MODEL,
+            "messages":    messages,
+            "tools":       self._tools,
+            "tool_choice": "auto",
+        })
 
-        msg = response.choices[0].message
-        if msg.tool_calls:
-            tc   = msg.tool_calls[0]
-            name = tc.function.name
+        msg = data["choices"][0]["message"]
+        tool_calls = msg.get("tool_calls") or []
+        if tool_calls:
+            tc   = tool_calls[0]
+            name = tc["function"]["name"]
             try:
-                args = json.loads(tc.function.arguments)
+                args = json.loads(tc["function"]["arguments"])
             except (json.JSONDecodeError, TypeError):
                 args = {}
             if "items" in args and isinstance(args["items"], list):
                 args["items"] = _normalise_items(args["items"])
-            self._last_call = {"name": name, "args": args, "id": tc.id}
+            self._last_call = {"name": name, "args": args, "id": tc["id"]}
             logger.info("Gateway selected tool: %s  args=%s", name, args)
             return name, args
 
@@ -175,7 +176,7 @@ class GatewayLLM:
             {"role": "system", "content": self._SYSTEM_PROMPT},
             {"role": "user",   "content": user_msg},
             {
-                "role": "assistant",
+                "role":    "assistant",
                 "content": None,
                 "tool_calls": [
                     {
@@ -195,15 +196,24 @@ class GatewayLLM:
             },
         ]
 
-        response = self._client.chat.completions.create(
-            model=self.MODEL,
-            messages=messages,
-            tools=self._tools,
-        )
+        data = self._post({
+            "model":    self.MODEL,
+            "messages": messages,
+            "tools":    self._tools,
+        })
 
-        return response.choices[0].message.content or json.dumps(tool_result, indent=2)
+        return data["choices"][0]["message"].get("content") or json.dumps(tool_result, indent=2)
 
     # ── private ──────────────────────────────────────────────────────────────
+
+    def _post(self, payload: dict) -> dict:
+        """POST to gateway; raise on HTTP errors."""
+        resp = self._http.post(self._endpoint, headers=self._headers, json=payload)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Gateway {resp.status_code}: {resp.text[:400]}"
+            )
+        return resp.json()
 
     def _last_user(self, conversation: list[dict]) -> str:
         return next(
