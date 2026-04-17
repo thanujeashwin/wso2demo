@@ -110,7 +110,7 @@ class GatewayLLM:
         self._endpoint  = _AI_GATEWAY_INVOKE_URL.rstrip("/") + "/chat/completions"
         self._headers   = {
             "Content-Type": "application/json",
-            "api-key":      apikey,
+            "X-API-Key":    apikey,
         }
         self._http      = httpx.Client(timeout=60.0)
         self._tools     = self._build_tools()
