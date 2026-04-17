@@ -76,7 +76,7 @@ class GeminiLLM:
       PRODUCTION_GEMINI_LLM_API_KEY  — API key for authentication
     """
 
-    GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 
     _SYSTEM_PROMPT = (
         "You are a helpful Morrisons supermarket shopping assistant. "
