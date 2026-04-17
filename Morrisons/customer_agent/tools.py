@@ -8,8 +8,11 @@ Mock OpenTelemetry spans are emitted via traces.py.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger("customer_agent.tools")
 
 from demo_data import (
     PRODUCTS,
@@ -197,7 +200,7 @@ def place_order(customer_id: str, items: list[dict[str, Any]]) -> str:
         "estimated_delivery": "Within 2–4 hours",
     }
 
-    return json.dumps({
+    result = {
         "status":               "ok",
         "order_id":             oid,
         "customer_name":        customer["name"],
@@ -206,7 +209,16 @@ def place_order(customer_id: str, items: list[dict[str, Any]]) -> str:
         "order_status":         "confirmed",
         "estimated_delivery":   "Within 2–4 hours",
         "errors":               errors,  # partial failures if any
-    })
+    }
+
+    # Notify downstream agents (fire-and-forget — customer agent does not wait)
+    try:
+        from notify import notify_agents_of_order
+        notify_agents_of_order(result)
+    except Exception as _exc:
+        logger.warning("notify_agents_of_order failed: %s", _exc)
+
+    return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
