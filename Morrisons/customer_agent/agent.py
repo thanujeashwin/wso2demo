@@ -65,15 +65,27 @@ _CATEGORIES = ["dairy", "meat", "bakery", "fruit", "vegetables", "eggs",
 
 
 # ---------------------------------------------------------------------------
-# GeminiLLM — real LLM via WSO2 Agent Manager injected env vars
+# GeminiLLM — routed through WSO2 Agent Manager built-in AI gateway
 # ---------------------------------------------------------------------------
+
+# WSO2 Agent Manager internal AI gateway — handles routing to the configured
+# LLM provider, applies guardrails, rate limiting, and governance centrally.
+_AI_GATEWAY_URL = os.environ.get(
+    "AI_GATEWAY_URL",
+    "http://ai-gateway.amp.localhost:8084",
+)
+
 
 class GeminiLLM:
     """
-    Uses the Gemini API proxied through WSO2 Agent Manager.
-    Env vars injected by the platform:
-      PRODUCTION_GEMINI_LLM_URL      — base URL of the LLM provider endpoint
-      PRODUCTION_GEMINI_LLM_API_KEY  — API key for authentication
+    Sends requests through the WSO2 Agent Manager AI gateway.
+    The gateway routes to the configured LLM provider (Gemini) and applies
+    platform-level guardrails before the request reaches the model.
+
+    Env vars:
+      AI_GATEWAY_URL             — gateway base URL (default: http://ai-gateway.amp.localhost:8084)
+      PRODUCTION_GEMINI_LLM_API_KEY — API key injected by WSO2 Agent Manager
+      GEMINI_MODEL               — model name override (default: gemini-1.5-flash)
     """
 
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
@@ -89,19 +101,19 @@ class GeminiLLM:
         from google import genai
         from google.genai import types as gtypes
 
-        url    = os.environ["PRODUCTION_GEMINI_LLM_URL"]
-        apikey = os.environ["PRODUCTION_GEMINI_LLM_API_KEY"]
+        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "").strip()
+        url    = _AI_GATEWAY_URL
 
         http_options = gtypes.HttpOptions(
             base_url=url,
             client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
         )
-        self._client  = genai.Client(api_key=apikey, http_options=http_options)
+        self._client  = genai.Client(api_key=apikey or "gateway", http_options=http_options)
         self._gtypes  = gtypes
         self._tools   = self._build_tools()
         self._last_fc = None   # last FunctionCall — shared between select_tool/synthesise
         self.model_name = f"GeminiLLM ({self.GEMINI_MODEL})"
-        logger.info("GeminiLLM initialised — model=%s  url=%s", self.GEMINI_MODEL, url)
+        logger.info("GeminiLLM initialised — model=%s  gateway=%s", self.GEMINI_MODEL, url)
 
     # ── public API (same interface as DemoLLM) ───────────────────────────────
 
@@ -420,42 +432,32 @@ _llm_instance: GeminiLLM | DemoLLM | None = None
 
 def _get_llm() -> GeminiLLM | DemoLLM:
     """
-    Return the active LLM, initialising it on first call.
-    Lazy init means a transient startup failure (e.g. google-genai not yet
-    installed when the module loads) won't permanently lock us to DemoLLM —
-    the next request will retry.
+    Return the active LLM, initialising it on first call (lazy).
+
+    Priority:
+      1. GeminiLLM via WSO2 AI gateway (AI_GATEWAY_URL, default localhost:8084)
+      2. DemoLLM fallback if GeminiLLM init fails (e.g. local dev without gateway)
     """
     global _llm_instance
     if _llm_instance is not None:
         return _llm_instance
 
-    url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL", "").strip()
-    apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "").strip()
-
-    if url and apikey:
-        try:
-            _llm_instance = GeminiLLM()
-            logger.info("LLM: GeminiLLM initialised (model=%s)", _llm_instance.GEMINI_MODEL)
-            return _llm_instance
-        except Exception as exc:
-            # Log at ERROR so it appears clearly in WSO2 Agent Manager runtime logs
-            logger.error(
-                "GeminiLLM init FAILED — falling back to DemoLLM.\n"
-                "  PRODUCTION_GEMINI_LLM_URL    = %s\n"
-                "  PRODUCTION_GEMINI_LLM_API_KEY = %s\n"
-                "  Exception: %s: %s",
-                url,
-                apikey[:6] + "…" if len(apikey) > 6 else "(empty)",
-                type(exc).__name__,
-                exc,
-            )
-    else:
-        logger.warning(
-            "LLM: Gemini env vars not set — using DemoLLM.\n"
-            "  PRODUCTION_GEMINI_LLM_URL    = %r\n"
-            "  PRODUCTION_GEMINI_LLM_API_KEY = %r",
-            url or "(not set)",
-            "(not set)" if not apikey else "(set)",
+    try:
+        _llm_instance = GeminiLLM()
+        logger.info(
+            "LLM: GeminiLLM via gateway=%s  model=%s",
+            _AI_GATEWAY_URL,
+            _llm_instance.GEMINI_MODEL,
+        )
+        return _llm_instance
+    except Exception as exc:
+        logger.error(
+            "GeminiLLM init FAILED — falling back to DemoLLM.\n"
+            "  AI_GATEWAY_URL = %s\n"
+            "  Exception: %s: %s",
+            _AI_GATEWAY_URL,
+            type(exc).__name__,
+            exc,
         )
 
     _llm_instance = DemoLLM()
