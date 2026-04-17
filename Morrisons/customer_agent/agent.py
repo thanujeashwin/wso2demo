@@ -418,7 +418,7 @@ def _get_llm() -> GatewayLLM | DemoLLM:
 
     try:
         _llm_instance = GatewayLLM()
-        logger.info("LLM: GatewayLLM  model=%s  url=%s", _llm_instance.MODEL, _AI_GATEWAY_INVOKE_URL)
+        logger.info("LLM: GatewayLLM  model=%s", _llm_instance.MODEL)
         return _llm_instance
     except Exception as exc:
         logger.error(
