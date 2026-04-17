@@ -3,7 +3,7 @@
 Implements: Observe → Think → Act → Observe → … → Respond
 
 LLM selection (auto-detected at startup):
-  • GeminiLLM  — used when PRODUCTION_GEMINI_LLM_URL and
+  • GatewayLLM  — used when PRODUCTION_GEMINI_LLM_URL and
                   PRODUCTION_GEMINI_LLM_API_KEY are set (WSO2 Agent Manager)
   • DemoLLM    — deterministic keyword router, no API key required (local dev)
 
@@ -65,20 +65,30 @@ _CATEGORIES = ["dairy", "meat", "bakery", "fruit", "vegetables", "eggs",
 
 
 # ---------------------------------------------------------------------------
-# GeminiLLM — calls Google Gemini API directly
+# GatewayLLM — OpenAI-compatible client via WSO2 AI gateway (Gemini endpoint)
 # ---------------------------------------------------------------------------
 
+_AI_GATEWAY_INVOKE_URL = os.environ.get(
+    "AI_GATEWAY_URL",
+    "http://ai-gateway.amp.localhost:8084/llm/gemini",
+)
 
-class GeminiLLM:
+
+class GatewayLLM:
     """
-    Calls Google Gemini directly via the google-genai SDK.
+    Calls the WSO2 AI gateway's Gemini endpoint using the OpenAI-compatible API.
+
+    The gateway exposes POST /chat/completions at the invoke URL, handles
+    routing to Gemini, and applies guardrails/governance centrally.
 
     Env vars:
-      PRODUCTION_GEMINI_LLM_API_KEY — Gemini API key (injected by WSO2 Agent Manager)
-      GEMINI_MODEL                  — model name override (default: gemini-1.5-flash)
+      AI_GATEWAY_URL                — full invoke URL
+                                      (default: http://ai-gateway.amp.localhost:8084/llm/gemini)
+      PRODUCTION_GEMINI_LLM_API_KEY — API key injected by WSO2 Agent Manager
+      GEMINI_MODEL                  — model name (default: gemini-1.5-flash)
     """
 
-    GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+    MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 
     _SYSTEM_PROMPT = (
         "You are a helpful Morrisons supermarket shopping assistant. "
@@ -88,105 +98,102 @@ class GeminiLLM:
     )
 
     def __init__(self):
-        from google import genai
-        from google.genai import types as gtypes
+        from openai import OpenAI
 
-        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "").strip()
-        if not apikey:
-            raise ValueError("PRODUCTION_GEMINI_LLM_API_KEY is not set")
+        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "gateway").strip()
+        # openai SDK appends /chat/completions to base_url
+        base = _AI_GATEWAY_INVOKE_URL.rstrip("/")
 
-        # Call Gemini directly — google-genai SDK uses generativelanguage.googleapis.com
-        self._client  = genai.Client(api_key=apikey)
-        self._gtypes  = gtypes
-        self._tools   = self._build_tools()
-        self._last_fc = None   # last FunctionCall — shared between select_tool/synthesise
-        self.model_name = f"GeminiLLM ({self.GEMINI_MODEL})"
-        logger.info("GeminiLLM initialised — model=%s (direct Gemini API)", self.GEMINI_MODEL)
+        self._client    = OpenAI(base_url=base, api_key=apikey or "gateway")
+        self._tools     = self._build_tools()
+        self._last_call: dict | None = None
+        self.model_name = f"GatewayLLM ({self.MODEL})"
+        logger.info("GatewayLLM initialised — model=%s  url=%s", self.MODEL, base)
 
-    # ── public API (same interface as DemoLLM) ───────────────────────────────
+    # ── public API ───────────────────────────────────────────────────────────
 
     def select_tool(self, conversation: list[dict]) -> tuple[str, dict]:
-        """Send message to Gemini; return (tool_name, args) from function call."""
-        user_msg = self._last_user(conversation)
+        """Ask the gateway which tool to call; return (tool_name, args)."""
+        user_msg    = self._last_user(conversation)
         customer_id = self._extract_customer(conversation)
 
-        system_ctx = (
-            f"{self._SYSTEM_PROMPT}\n"
-            f"Current customer ID: {customer_id}. "
-            "Use this customer_id when calling place_order or get_customer_profile."
-        )
-
-        contents = [
-            self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(text=f"{system_ctx}\n\nCustomer: {user_msg}")],
-            )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    f"{self._SYSTEM_PROMPT}\n"
+                    f"Current customer ID: {customer_id}. "
+                    "Always pass this customer_id when calling "
+                    "place_order or get_customer_profile."
+                ),
+            },
+            {"role": "user", "content": user_msg},
         ]
 
-        response = self._client.models.generate_content(
-            model=self.GEMINI_MODEL,
-            contents=contents,
-            config=self._gtypes.GenerateContentConfig(tools=self._tools),
+        response = self._client.chat.completions.create(
+            model=self.MODEL,
+            messages=messages,
+            tools=self._tools,
+            tool_choice="auto",
         )
 
-        for part in response.candidates[0].content.parts:
-            if part.function_call:
-                fc = part.function_call
-                self._last_fc = fc
-                args = dict(fc.args) if fc.args else {}
-                # items comes back as a proto ListValue — normalise to plain list
-                if "items" in args:
-                    args["items"] = _normalise_items(args["items"])
-                logger.info("Gemini selected tool: %s  args=%s", fc.name, args)
-                return fc.name, args
+        msg = response.choices[0].message
+        if msg.tool_calls:
+            tc   = msg.tool_calls[0]
+            name = tc.function.name
+            try:
+                args = json.loads(tc.function.arguments)
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            if "items" in args and isinstance(args["items"], list):
+                args["items"] = _normalise_items(args["items"])
+            self._last_call = {"name": name, "args": args, "id": tc.id}
+            logger.info("Gateway selected tool: %s  args=%s", name, args)
+            return name, args
 
-        # Gemini returned text without a function call — fall back to browse
-        logger.warning("Gemini returned no function call; falling back to browse_products")
-        self._last_fc = None
+        logger.warning("Gateway returned no tool call; falling back to browse_products")
+        self._last_call = None
         return "browse_products", {}
 
     def synthesise(self, conversation: list[dict], tool_result: dict) -> str:
-        """Send tool result back to Gemini; return natural-language reply."""
+        """Send tool result back to gateway; return natural-language reply."""
         user_msg = self._last_user(conversation)
 
-        if self._last_fc is None:
-            # No function call was recorded — just serialise the result
+        if self._last_call is None:
             return json.dumps(tool_result, indent=2)
 
-        fc = self._last_fc
-        contents = [
-            self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(
-                    text=f"{self._SYSTEM_PROMPT}\n\nCustomer: {user_msg}"
-                )],
-            ),
-            self._gtypes.Content(
-                role="model",
-                parts=[self._gtypes.Part(
-                    function_call=self._gtypes.FunctionCall(
-                        name=fc.name, args=fc.args
-                    )
-                )],
-            ),
-            self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(
-                    function_response=self._gtypes.FunctionResponse(
-                        name=fc.name,
-                        response={"result": tool_result},
-                    )
-                )],
-            ),
+        lc = self._last_call
+        messages = [
+            {"role": "system", "content": self._SYSTEM_PROMPT},
+            {"role": "user",   "content": user_msg},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id":       lc["id"],
+                        "type":     "function",
+                        "function": {
+                            "name":      lc["name"],
+                            "arguments": json.dumps(lc["args"]),
+                        },
+                    }
+                ],
+            },
+            {
+                "role":         "tool",
+                "tool_call_id": lc["id"],
+                "content":      json.dumps(tool_result),
+            },
         ]
 
-        response = self._client.models.generate_content(
-            model=self.GEMINI_MODEL,
-            contents=contents,
-            config=self._gtypes.GenerateContentConfig(tools=self._tools),
+        response = self._client.chat.completions.create(
+            model=self.MODEL,
+            messages=messages,
+            tools=self._tools,
         )
 
-        return response.text or json.dumps(tool_result, indent=2)
+        return response.choices[0].message.content or json.dumps(tool_result, indent=2)
 
     # ── private ──────────────────────────────────────────────────────────────
 
@@ -196,7 +203,6 @@ class GeminiLLM:
         )
 
     def _extract_customer(self, conversation: list[dict]) -> str:
-        """Pull customer_id from conversation context if present."""
         for m in conversation:
             if m.get("role") == "system":
                 match = _CUST_RE.search(m.get("content", ""))
@@ -204,66 +210,49 @@ class GeminiLLM:
                     return match.group(0)
         return "CUST-5001"
 
-    def _build_tools(self):
-        """Convert TOOL_REGISTRY into Gemini FunctionDeclarations."""
-        T = self._gtypes
-        declarations = []
-
+    def _build_tools(self) -> list[dict]:
+        """Convert TOOL_REGISTRY into OpenAI function-calling schema."""
+        tools = []
         for tool in TOOL_REGISTRY.values():
-            props  = {}
+            props    = {}
             required = []
-
             for pname, pinfo in tool["parameters"].items():
-                raw_type = pinfo.get("type", "string").upper()
-
-                if raw_type == "ARRAY":
-                    # items array: [{product_id, quantity}]
-                    schema = T.Schema(
-                        type=T.Type.ARRAY,
-                        description=pinfo.get("description", ""),
-                        items=T.Schema(
-                            type=T.Type.OBJECT,
-                            properties={
-                                "product_id": T.Schema(
-                                    type=T.Type.STRING,
-                                    description="Product ID e.g. PROD-001",
-                                ),
-                                "quantity": T.Schema(
-                                    type=T.Type.INTEGER,
-                                    description="Number of units",
-                                ),
+                raw_type = pinfo.get("type", "string").lower()
+                if raw_type == "array":
+                    prop = {
+                        "type":        "array",
+                        "description": pinfo.get("description", ""),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "product_id": {"type": "string",  "description": "Product ID e.g. PROD-001"},
+                                "quantity":   {"type": "integer", "description": "Number of units"},
                             },
-                            required=["product_id", "quantity"],
-                        ),
-                    )
-                elif raw_type == "INTEGER":
-                    schema = T.Schema(
-                        type=T.Type.INTEGER,
-                        description=pinfo.get("description", ""),
-                    )
+                            "required": ["product_id", "quantity"],
+                        },
+                    }
                 else:
-                    schema = T.Schema(
-                        type=T.Type.STRING,
-                        description=pinfo.get("description", ""),
-                    )
-
-                props[pname] = schema
+                    prop = {
+                        "type":        raw_type,
+                        "description": pinfo.get("description", ""),
+                    }
+                props[pname] = prop
                 if pinfo.get("required", False):
                     required.append(pname)
 
-            declarations.append(
-                T.FunctionDeclaration(
-                    name=tool["name"],
-                    description=tool["description"],
-                    parameters=T.Schema(
-                        type=T.Type.OBJECT,
-                        properties=props,
-                        required=required or None,
-                    ),
-                )
-            )
-
-        return [T.Tool(function_declarations=declarations)]
+            tools.append({
+                "type": "function",
+                "function": {
+                    "name":        tool["name"],
+                    "description": tool["description"],
+                    "parameters": {
+                        "type":       "object",
+                        "properties": props,
+                        "required":   required,
+                    },
+                },
+            })
+        return tools
 
 
 # ---------------------------------------------------------------------------
@@ -415,28 +404,28 @@ class DemoLLM:
 # LLM selection — lazy, resolved on first request
 # ---------------------------------------------------------------------------
 
-_llm_instance: GeminiLLM | DemoLLM | None = None
+_llm_instance: GatewayLLM | DemoLLM | None = None
 
 
-def _get_llm() -> GeminiLLM | DemoLLM:
+def _get_llm() -> GatewayLLM | DemoLLM:
     """
     Return the active LLM, initialising it on first call (lazy).
 
     Priority:
-      1. GeminiLLM via WSO2 AI gateway (AI_GATEWAY_URL, default localhost:8084)
-      2. DemoLLM fallback if GeminiLLM init fails (e.g. local dev without gateway)
+      1. GatewayLLM via WSO2 AI gateway (AI_GATEWAY_URL, default localhost:8084)
+      2. DemoLLM fallback if GatewayLLM init fails (e.g. local dev without gateway)
     """
     global _llm_instance
     if _llm_instance is not None:
         return _llm_instance
 
     try:
-        _llm_instance = GeminiLLM()
-        logger.info("LLM: GeminiLLM direct  model=%s", _llm_instance.GEMINI_MODEL)
+        _llm_instance = GatewayLLM()
+        logger.info("LLM: GatewayLLM  model=%s  url=%s", _llm_instance.MODEL, _AI_GATEWAY_INVOKE_URL)
         return _llm_instance
     except Exception as exc:
         logger.error(
-            "GeminiLLM init FAILED — falling back to DemoLLM. %s: %s",
+            "GatewayLLM init FAILED — falling back to DemoLLM. %s: %s",
             type(exc).__name__,
             exc,
         )
@@ -457,7 +446,7 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
     context = context or {}
     customer_id = context.get("customer_id", "CUST-5001")
 
-    # Inject customer context so GeminiLLM can read it
+    # Inject customer context so GatewayLLM can read it
     conversation: list[dict] = [
         {"role": "system", "content": f"customer_id={customer_id}"},
         {"role": "user",   "content": message},
