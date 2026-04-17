@@ -101,7 +101,7 @@ class GatewayLLM:
             base_url=url,
             client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
         )
-        self._client  = genai.Client(http_options=_http_options)
+        self._client  = genai.Client(api_key=apikey, http_options=_http_options)
         self._gtypes  = gtypes
         self._tools   = self._build_tools()
         self._last_fc = None
