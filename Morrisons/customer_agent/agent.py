@@ -99,6 +99,7 @@ class GatewayLLM:
 
         _http_options = gtypes.HttpOptions(
             base_url=url,
+            api_version="v1",
             client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
         )
         self._client  = genai.Client(api_key=apikey, http_options=_http_options)
