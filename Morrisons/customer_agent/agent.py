@@ -108,16 +108,21 @@ class GatewayLLM:
         if not self._url:
             raise ValueError("PRODUCTION_GEMINI_LLM_URL is not set")
 
+        # Full Gemini generateContent endpoint:
+        # {base}/v1beta/models/{model}:generateContent
+        self._endpoint = f"{self._url}/v1beta/models/{self.MODEL}:generateContent"
+
         self._headers = {
-            "Content-Type": "application/json",
-            "API-Key":      apikey,
-            "X-API-Key":    apikey,
-            "Authorization": "",
+            "Content-Type":   "application/json",
+            "x-goog-api-key": apikey,   # standard Gemini API key header
+            "API-Key":        apikey,   # WSO2 gateway header
+            "X-API-Key":      apikey,   # WSO2 gateway alternate header
+            "Authorization":  "",       # clear default auth
         }
         self._http      = httpx.Client(timeout=60.0)
         self._last_tool = None
         self.model_name = f"GatewayLLM ({self.MODEL})"
-        logger.info("GatewayLLM initialised — url=%s", self._url)
+        logger.info("GatewayLLM initialised — endpoint=%s", self._endpoint)
 
     # ── public API ───────────────────────────────────────────────────────────
 
@@ -168,11 +173,11 @@ class GatewayLLM:
     # ── private ──────────────────────────────────────────────────────────────
 
     def _generate(self, prompt: str) -> str:
-        """POST directly to PRODUCTION_GEMINI_LLM_URL in Gemini generateContent format."""
+        """POST to Gemini generateContent endpoint via WSO2 gateway."""
         payload = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}]
         }
-        resp = self._http.post(self._url, headers=self._headers, json=payload)
+        resp = self._http.post(self._endpoint, headers=self._headers, json=payload)
         if resp.status_code != 200:
             raise RuntimeError(f"Gateway {resp.status_code}: {resp.text[:400]}")
         data = resp.json()
