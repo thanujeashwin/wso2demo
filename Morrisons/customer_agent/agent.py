@@ -104,10 +104,15 @@ class GatewayLLM:
             "PRODUCTION_GEMINI_LLM_API_KEY",
             "7c6a60ff94b1a9d9c12bd4b990ff240872c57e5e548c2ec66160dc8a45f4fe48",
         ).strip()
-        # openai SDK appends /chat/completions to base_url
+        # openai SDK appends /chat/completions to base_url.
+        # WSO2 API Manager expects the key in the "api-key" header, not Bearer.
         base = _AI_GATEWAY_INVOKE_URL.rstrip("/")
 
-        self._client    = OpenAI(base_url=base, api_key=apikey)
+        self._client    = OpenAI(
+            base_url=base,
+            api_key="not-used",           # required by SDK but ignored by WSO2
+            default_headers={"api-key": apikey},
+        )
         self._tools     = self._build_tools()
         self._last_call: dict | None = None
         self.model_name = f"GatewayLLM ({self.MODEL})"
