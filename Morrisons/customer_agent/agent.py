@@ -65,27 +65,17 @@ _CATEGORIES = ["dairy", "meat", "bakery", "fruit", "vegetables", "eggs",
 
 
 # ---------------------------------------------------------------------------
-# GeminiLLM — routed through WSO2 Agent Manager built-in AI gateway
+# GeminiLLM — calls Google Gemini API directly
 # ---------------------------------------------------------------------------
-
-# WSO2 Agent Manager internal AI gateway — handles routing to the configured
-# LLM provider, applies guardrails, rate limiting, and governance centrally.
-_AI_GATEWAY_URL = os.environ.get(
-    "AI_GATEWAY_URL",
-    "http://ai-gateway.amp.localhost:8084",
-)
 
 
 class GeminiLLM:
     """
-    Sends requests through the WSO2 Agent Manager AI gateway.
-    The gateway routes to the configured LLM provider (Gemini) and applies
-    platform-level guardrails before the request reaches the model.
+    Calls Google Gemini directly via the google-genai SDK.
 
     Env vars:
-      AI_GATEWAY_URL             — gateway base URL (default: http://ai-gateway.amp.localhost:8084)
-      PRODUCTION_GEMINI_LLM_API_KEY — API key injected by WSO2 Agent Manager
-      GEMINI_MODEL               — model name override (default: gemini-1.5-flash)
+      PRODUCTION_GEMINI_LLM_API_KEY — Gemini API key (injected by WSO2 Agent Manager)
+      GEMINI_MODEL                  — model name override (default: gemini-1.5-flash)
     """
 
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
@@ -102,18 +92,16 @@ class GeminiLLM:
         from google.genai import types as gtypes
 
         apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "").strip()
-        url    = _AI_GATEWAY_URL
+        if not apikey:
+            raise ValueError("PRODUCTION_GEMINI_LLM_API_KEY is not set")
 
-        http_options = gtypes.HttpOptions(
-            base_url=url,
-            client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
-        )
-        self._client  = genai.Client(api_key=apikey or "gateway", http_options=http_options)
+        # Call Gemini directly — google-genai SDK uses generativelanguage.googleapis.com
+        self._client  = genai.Client(api_key=apikey)
         self._gtypes  = gtypes
         self._tools   = self._build_tools()
         self._last_fc = None   # last FunctionCall — shared between select_tool/synthesise
         self.model_name = f"GeminiLLM ({self.GEMINI_MODEL})"
-        logger.info("GeminiLLM initialised — model=%s  gateway=%s", self.GEMINI_MODEL, url)
+        logger.info("GeminiLLM initialised — model=%s (direct Gemini API)", self.GEMINI_MODEL)
 
     # ── public API (same interface as DemoLLM) ───────────────────────────────
 
@@ -444,18 +432,11 @@ def _get_llm() -> GeminiLLM | DemoLLM:
 
     try:
         _llm_instance = GeminiLLM()
-        logger.info(
-            "LLM: GeminiLLM via gateway=%s  model=%s",
-            _AI_GATEWAY_URL,
-            _llm_instance.GEMINI_MODEL,
-        )
+        logger.info("LLM: GeminiLLM direct  model=%s", _llm_instance.GEMINI_MODEL)
         return _llm_instance
     except Exception as exc:
         logger.error(
-            "GeminiLLM init FAILED — falling back to DemoLLM.\n"
-            "  AI_GATEWAY_URL = %s\n"
-            "  Exception: %s: %s",
-            _AI_GATEWAY_URL,
+            "GeminiLLM init FAILED — falling back to DemoLLM. %s: %s",
             type(exc).__name__,
             exc,
         )
