@@ -92,30 +92,32 @@ class GatewayLLM:
 
     # Tool descriptions injected into the text prompt
     _TOOL_DESCRIPTIONS = (
-        "browse_products(category?: string) — list available products, optionally filtered by category\n"
-        "check_stock(product_id: string) — check stock level for a product\n"
-        "place_order(customer_id: string, items: [{product_id, quantity}]) — place a new order\n"
-        "track_order(order_id: string) — get delivery status for an order\n"
-        "get_customer_profile(customer_id: string) — get customer details and loyalty info"
+        "browse_products(category?: string) — list available products\n"
+        "check_stock(product_id: string) — check stock level\n"
+        "place_order(customer_id: string, items: [{product_id, quantity}]) — place order\n"
+        "track_order(order_id: string) — get delivery status\n"
+        "get_customer_profile(customer_id: string) — get customer details"
     )
 
     def __init__(self):
-        from google import genai
-        from google.genai import types as gtypes
+        import httpx
 
-        url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL")
-        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY")
+        self._url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL", "").rstrip("/")
+        apikey       = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "")
 
-        _http_options = gtypes.HttpOptions(
-            base_url=url,
-            api_version="v1beta",
-            client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
-        )
-        self._client    = genai.Client(api_key=apikey, http_options=_http_options)
-        self._gtypes    = gtypes
-        self._last_tool = None   # stores {"name": ..., "args": ...} between steps
+        if not self._url:
+            raise ValueError("PRODUCTION_GEMINI_LLM_URL is not set")
+
+        self._headers = {
+            "Content-Type": "application/json",
+            "API-Key":      apikey,
+            "X-API-Key":    apikey,
+            "Authorization": "",
+        }
+        self._http      = httpx.Client(timeout=60.0)
+        self._last_tool = None
         self.model_name = f"GatewayLLM ({self.MODEL})"
-        logger.info("GatewayLLM initialised — model=%s  url=%s", self.MODEL, url)
+        logger.info("GatewayLLM initialised — url=%s", self._url)
 
     # ── public API ───────────────────────────────────────────────────────────
 
@@ -126,62 +128,58 @@ class GatewayLLM:
 
         prompt = (
             f"{self._SYSTEM_PROMPT}\n"
-            f"Current customer ID: {customer_id}.\n\n"
-            f"Available tools:\n{self._TOOL_DESCRIPTIONS}\n\n"
-            "Respond with ONLY a JSON object (no markdown) in this exact format:\n"
-            '{"tool": "<tool_name>", "args": {<arguments>}}\n\n'
-            f"Customer message: {user_msg}"
+            f"Customer ID: {customer_id}.\n\n"
+            f"Tools:\n{self._TOOL_DESCRIPTIONS}\n\n"
+            "Reply with ONLY JSON: "
+            '{"tool":"<name>","args":{...}}\n\n'
+            f"Customer: {user_msg}"
         )
 
-        response = self._client.models.generate_content(
-            model=self.MODEL,
-            contents=[self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(text=prompt)],
-            )],
-        )
-
-        raw = response.text or ""
+        raw = self._generate(prompt)
         try:
-            # Strip markdown code fences if present
-            clean = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.DOTALL).strip()
+            clean  = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.DOTALL).strip()
             parsed = json.loads(clean)
-            name = parsed.get("tool", "browse_products")
-            args = parsed.get("args", {})
+            name   = parsed.get("tool", "browse_products")
+            args   = parsed.get("args", {})
             if "items" in args and isinstance(args["items"], list):
                 args["items"] = _normalise_items(args["items"])
             self._last_tool = {"name": name, "args": args}
             logger.info("Gateway selected tool: %s  args=%s", name, args)
             return name, args
         except (json.JSONDecodeError, TypeError) as exc:
-            logger.warning("Could not parse tool JSON from Gemini (%s): %s", exc, raw[:200])
+            logger.warning("Could not parse tool JSON (%s): %s", exc, raw[:200])
             self._last_tool = None
             return "browse_products", {}
 
     def synthesise(self, conversation: list[dict], tool_result: dict) -> str:
         """Ask Gemini to turn the tool result into a natural-language reply."""
-        user_msg = self._last_user(conversation)
+        user_msg  = self._last_user(conversation)
         tool_name = (self._last_tool or {}).get("name", "tool")
 
         prompt = (
             f"{self._SYSTEM_PROMPT}\n\n"
-            f"The customer said: {user_msg}\n\n"
-            f"You called the '{tool_name}' tool and got this result:\n"
-            f"{json.dumps(tool_result, indent=2)}\n\n"
-            "Write a friendly, concise reply to the customer based on this result."
+            f"Customer said: {user_msg}\n"
+            f"Tool '{tool_name}' returned: {json.dumps(tool_result)}\n\n"
+            "Write a friendly concise reply."
         )
 
-        response = self._client.models.generate_content(
-            model=self.MODEL,
-            contents=[self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(text=prompt)],
-            )],
-        )
-
-        return response.text or json.dumps(tool_result, indent=2)
+        return self._generate(prompt) or json.dumps(tool_result, indent=2)
 
     # ── private ──────────────────────────────────────────────────────────────
+
+    def _generate(self, prompt: str) -> str:
+        """POST directly to PRODUCTION_GEMINI_LLM_URL in Gemini generateContent format."""
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}]
+        }
+        resp = self._http.post(self._url, headers=self._headers, json=payload)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Gateway {resp.status_code}: {resp.text[:400]}")
+        data = resp.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError):
+            return ""
 
     def _last_user(self, conversation: list[dict]) -> str:
         return next(
