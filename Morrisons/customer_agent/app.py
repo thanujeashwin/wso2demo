@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -26,6 +27,46 @@ from pydantic import BaseModel, Field
 
 import agent
 from tools import TOOL_REGISTRY
+
+# ---------------------------------------------------------------------------
+# PII masking
+# ---------------------------------------------------------------------------
+
+# Matches 13–19 digit sequences with optional spaces or hyphens between digits
+# (covers Visa, Mastercard, Amex, Discover, etc.)
+_CC_RE    = re.compile(r"\b(?:\d[ -]*){13,19}\d\b")
+_CC_MASK  = "[CARD-MASKED]"
+
+# UK mobile numbers:  07xxx xxxxxx  or  +447xxx xxxxxx
+_MOB_RE   = re.compile(r"(?:\+44\s?7|\b07)\d{3}[\s-]?\d{6}\b")
+_MOB_MASK = "[MOBILE-MASKED]"
+
+# Basic email addresses
+_EMAIL_RE   = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
+_EMAIL_MASK = "[EMAIL-MASKED]"
+
+
+def mask_pii(text: str) -> tuple[str, list[str]]:
+    """
+    Remove PII from a user message before it is sent to the LLM.
+    Returns (masked_text, list_of_what_was_masked).
+    """
+    masked = []
+    result = text
+
+    if _CC_RE.search(result):
+        result = _CC_RE.sub(_CC_MASK, result)
+        masked.append("credit card number")
+
+    if _MOB_RE.search(result):
+        result = _MOB_RE.sub(_MOB_MASK, result)
+        masked.append("mobile number")
+
+    if _EMAIL_RE.search(result):
+        result = _EMAIL_RE.sub(_EMAIL_MASK, result)
+        masked.append("email address")
+
+    return result, masked
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -115,16 +156,25 @@ def chat(request: ChatRequest) -> ChatResponse:
     Main chat endpoint.  Delegates to the ReAct agent loop in agent.py.
     Context may include customer_id to personalise tool calls.
     """
+    # Mask PII before the message reaches the LLM
+    clean_message, masked_fields = mask_pii(request.message)
+    if masked_fields:
+        logger.info(
+            "chat  session=%s  PII masked: %s",
+            request.session_id,
+            ", ".join(masked_fields),
+        )
+
     logger.info(
         "chat  session=%s  customer=%s  msg=%r",
         request.session_id,
         request.context.get("customer_id", "—"),
-        request.message[:80],
+        clean_message[:80],
     )
 
     try:
         reply = agent.run(
-            message=request.message,
+            message=clean_message,
             session_id=request.session_id,
             context=request.context,
         )
