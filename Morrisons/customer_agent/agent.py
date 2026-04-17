@@ -100,11 +100,14 @@ class GatewayLLM:
     def __init__(self):
         from openai import OpenAI
 
-        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "gateway").strip()
+        apikey = os.environ.get(
+            "PRODUCTION_GEMINI_LLM_API_KEY",
+            "7c6a60ff94b1a9d9c12bd4b990ff240872c57e5e548c2ec66160dc8a45f4fe48",
+        ).strip()
         # openai SDK appends /chat/completions to base_url
         base = _AI_GATEWAY_INVOKE_URL.rstrip("/")
 
-        self._client    = OpenAI(base_url=base, api_key=apikey or "gateway")
+        self._client    = OpenAI(base_url=base, api_key=apikey)
         self._tools     = self._build_tools()
         self._last_call: dict | None = None
         self.model_name = f"GatewayLLM ({self.MODEL})"
