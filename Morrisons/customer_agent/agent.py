@@ -90,6 +90,15 @@ class GatewayLLM:
         "information before responding. Be friendly and concise."
     )
 
+    # Tool descriptions injected into the text prompt
+    _TOOL_DESCRIPTIONS = (
+        "browse_products(category?: string) — list available products, optionally filtered by category\n"
+        "check_stock(product_id: string) — check stock level for a product\n"
+        "place_order(customer_id: string, items: [{product_id, quantity}]) — place a new order\n"
+        "track_order(order_id: string) — get delivery status for an order\n"
+        "get_customer_profile(customer_id: string) — get customer details and loyalty info"
+    )
+
     def __init__(self):
         from google import genai
         from google.genai import types as gtypes
@@ -102,89 +111,72 @@ class GatewayLLM:
             api_version="v1",
             client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
         )
-        self._client  = genai.Client(api_key=apikey, http_options=_http_options)
-        self._gtypes  = gtypes
-        self._tools   = self._build_tools()
-        self._last_fc = None
+        self._client    = genai.Client(api_key=apikey, http_options=_http_options)
+        self._gtypes    = gtypes
+        self._last_tool = None   # stores {"name": ..., "args": ...} between steps
         self.model_name = f"GatewayLLM ({self.MODEL})"
         logger.info("GatewayLLM initialised — model=%s  url=%s", self.MODEL, url)
 
     # ── public API ───────────────────────────────────────────────────────────
 
     def select_tool(self, conversation: list[dict]) -> tuple[str, dict]:
-        """Ask Gemini via gateway which tool to call; return (tool_name, args)."""
+        """Ask Gemini which tool to call via text prompting; return (tool_name, args)."""
         user_msg    = self._last_user(conversation)
         customer_id = self._extract_customer(conversation)
 
-        system_ctx = (
+        prompt = (
             f"{self._SYSTEM_PROMPT}\n"
-            f"Current customer ID: {customer_id}. "
-            "Use this customer_id when calling place_order or get_customer_profile."
+            f"Current customer ID: {customer_id}.\n\n"
+            f"Available tools:\n{self._TOOL_DESCRIPTIONS}\n\n"
+            "Respond with ONLY a JSON object (no markdown) in this exact format:\n"
+            '{"tool": "<tool_name>", "args": {<arguments>}}\n\n'
+            f"Customer message: {user_msg}"
         )
-
-        contents = [
-            self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(text=f"{system_ctx}\n\nCustomer: {user_msg}")],
-            )
-        ]
 
         response = self._client.models.generate_content(
             model=self.MODEL,
-            contents=contents,
-            config=self._gtypes.GenerateContentConfig(tools=self._tools),
+            contents=[self._gtypes.Content(
+                role="user",
+                parts=[self._gtypes.Part(text=prompt)],
+            )],
         )
 
-        for part in response.candidates[0].content.parts:
-            if part.function_call:
-                fc   = part.function_call
-                self._last_fc = fc
-                args = dict(fc.args) if fc.args else {}
-                if "items" in args:
-                    args["items"] = _normalise_items(args["items"])
-                logger.info("Gateway selected tool: %s  args=%s", fc.name, args)
-                return fc.name, args
-
-        logger.warning("Gateway returned no function call; falling back to browse_products")
-        self._last_fc = None
-        return "browse_products", {}
+        raw = response.text or ""
+        try:
+            # Strip markdown code fences if present
+            clean = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.DOTALL).strip()
+            parsed = json.loads(clean)
+            name = parsed.get("tool", "browse_products")
+            args = parsed.get("args", {})
+            if "items" in args and isinstance(args["items"], list):
+                args["items"] = _normalise_items(args["items"])
+            self._last_tool = {"name": name, "args": args}
+            logger.info("Gateway selected tool: %s  args=%s", name, args)
+            return name, args
+        except (json.JSONDecodeError, TypeError) as exc:
+            logger.warning("Could not parse tool JSON from Gemini (%s): %s", exc, raw[:200])
+            self._last_tool = None
+            return "browse_products", {}
 
     def synthesise(self, conversation: list[dict], tool_result: dict) -> str:
-        """Send tool result back to Gemini via gateway; return natural-language reply."""
+        """Ask Gemini to turn the tool result into a natural-language reply."""
         user_msg = self._last_user(conversation)
+        tool_name = (self._last_tool or {}).get("name", "tool")
 
-        if self._last_fc is None:
-            return json.dumps(tool_result, indent=2)
-
-        fc = self._last_fc
-        contents = [
-            self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(
-                    text=f"{self._SYSTEM_PROMPT}\n\nCustomer: {user_msg}"
-                )],
-            ),
-            self._gtypes.Content(
-                role="model",
-                parts=[self._gtypes.Part(
-                    function_call=self._gtypes.FunctionCall(name=fc.name, args=fc.args)
-                )],
-            ),
-            self._gtypes.Content(
-                role="user",
-                parts=[self._gtypes.Part(
-                    function_response=self._gtypes.FunctionResponse(
-                        name=fc.name,
-                        response={"result": tool_result},
-                    )
-                )],
-            ),
-        ]
+        prompt = (
+            f"{self._SYSTEM_PROMPT}\n\n"
+            f"The customer said: {user_msg}\n\n"
+            f"You called the '{tool_name}' tool and got this result:\n"
+            f"{json.dumps(tool_result, indent=2)}\n\n"
+            "Write a friendly, concise reply to the customer based on this result."
+        )
 
         response = self._client.models.generate_content(
             model=self.MODEL,
-            contents=contents,
-            config=self._gtypes.GenerateContentConfig(tools=self._tools),
+            contents=[self._gtypes.Content(
+                role="user",
+                parts=[self._gtypes.Part(text=prompt)],
+            )],
         )
 
         return response.text or json.dumps(tool_result, indent=2)
@@ -203,54 +195,6 @@ class GatewayLLM:
                 if match:
                     return match.group(0)
         return "CUST-5001"
-
-    def _build_tools(self):
-        """Convert TOOL_REGISTRY into Gemini FunctionDeclarations."""
-        T            = self._gtypes
-        declarations = []
-
-        for tool in TOOL_REGISTRY.values():
-            props    = {}
-            required = []
-
-            for pname, pinfo in tool["parameters"].items():
-                raw_type = pinfo.get("type", "string").upper()
-
-                if raw_type == "ARRAY":
-                    schema = T.Schema(
-                        type=T.Type.ARRAY,
-                        description=pinfo.get("description", ""),
-                        items=T.Schema(
-                            type=T.Type.OBJECT,
-                            properties={
-                                "product_id": T.Schema(type=T.Type.STRING,  description="Product ID e.g. PROD-001"),
-                                "quantity":   T.Schema(type=T.Type.INTEGER, description="Number of units"),
-                            },
-                            required=["product_id", "quantity"],
-                        ),
-                    )
-                elif raw_type == "INTEGER":
-                    schema = T.Schema(type=T.Type.INTEGER, description=pinfo.get("description", ""))
-                else:
-                    schema = T.Schema(type=T.Type.STRING,  description=pinfo.get("description", ""))
-
-                props[pname] = schema
-                if pinfo.get("required", False):
-                    required.append(pname)
-
-            declarations.append(
-                T.FunctionDeclaration(
-                    name=tool["name"],
-                    description=tool["description"],
-                    parameters=T.Schema(
-                        type=T.Type.OBJECT,
-                        properties=props,
-                        required=required or None,
-                    ),
-                )
-            )
-
-        return [T.Tool(function_declarations=declarations)]
 
 
 # ---------------------------------------------------------------------------
