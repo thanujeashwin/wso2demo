@@ -81,7 +81,7 @@ class GatewayLLM:
       GEMINI_MODEL                  — model name (default: gemini-1.5-flash)
     """
 
-    MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+    MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
     _SYSTEM_PROMPT = (
         "You are a helpful Morrisons supermarket shopping assistant. "
@@ -100,29 +100,24 @@ class GatewayLLM:
     )
 
     def __init__(self):
-        import httpx
+        from google import genai
+        from google.genai import types as gtypes
 
-        self._url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL", "").rstrip("/")
-        apikey       = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "")
+        url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL", "").rstrip("/")
+        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY", "")
 
-        if not self._url:
+        if not url:
             raise ValueError("PRODUCTION_GEMINI_LLM_URL is not set")
 
-        # Full Gemini generateContent endpoint:
-        # {base}/v1beta/models/{model}:generateContent
-        self._endpoint = f"{self._url}/v1beta/models/{self.MODEL}:generateContent"
-
-        self._headers = {
-            "Content-Type":   "application/json",
-            "x-goog-api-key": apikey,   # standard Gemini API key header
-            "API-Key":        apikey,   # WSO2 gateway header
-            "X-API-Key":      apikey,   # WSO2 gateway alternate header
-            "Authorization":  "",       # clear default auth
-        }
-        self._http      = httpx.Client(timeout=60.0)
+        _http_options = gtypes.HttpOptions(
+            base_url=url,
+            client_args={"headers": {"API-Key": apikey, "X-API-Key": apikey, "Authorization": ""}},
+        )
+        self._client    = genai.Client(api_key=apikey, http_options=_http_options)
+        self._gtypes    = gtypes
         self._last_tool = None
         self.model_name = f"GatewayLLM ({self.MODEL})"
-        logger.info("GatewayLLM initialised — endpoint=%s", self._endpoint)
+        logger.info("GatewayLLM initialised — model=%s  url=%s", self.MODEL, url)
 
     # ── public API ───────────────────────────────────────────────────────────
 
@@ -173,18 +168,15 @@ class GatewayLLM:
     # ── private ──────────────────────────────────────────────────────────────
 
     def _generate(self, prompt: str) -> str:
-        """POST to Gemini generateContent endpoint via WSO2 gateway."""
-        payload = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}]
-        }
-        resp = self._http.post(self._endpoint, headers=self._headers, json=payload)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Gateway {resp.status_code}: {resp.text[:400]}")
-        data = resp.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError):
-            return ""
+        """Call Gemini via WSO2 gateway using google-genai SDK."""
+        response = self._client.models.generate_content(
+            model=self.MODEL,
+            contents=[self._gtypes.Content(
+                role="user",
+                parts=[self._gtypes.Part(text=prompt)],
+            )],
+        )
+        return response.text or ""
 
     def _last_user(self, conversation: list[dict]) -> str:
         return next(
