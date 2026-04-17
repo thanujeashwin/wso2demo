@@ -1,47 +1,85 @@
 # Morrisons AI Agent Demo — WSO2 Agent Manager
 
-A suite of seven AI agents built for **WSO2 Agent Manager**, demonstrating a multi-agent architecture for Morrisons supermarkets (UK). The agents simulate a real enterprise AI platform spanning SAP ERP, Oracle Finance, Salesforce CRM, AWS, GCP, and a customer-facing shopping assistant — emitting full observability traces via Traceloop on every request.
+A suite of ten AI agents built for **WSO2 Agent Manager**, demonstrating a multi-agent architecture for Morrisons supermarkets (UK). The agents simulate a real enterprise AI platform spanning SAP ERP, Oracle Finance, Salesforce CRM, AWS, GCP, and a customer-facing shopping assistant — emitting full observability traces via Traceloop on every request.
 
-> **Demo mode:** All agents use a `DemoLLM` (no API key required). The full ReAct pipeline runs on every request so WSO2 Agent Manager emits traces exactly as it would with a production LLM.
+When a customer places an order the **Customer Agent** fires asynchronous notifications to the **Inventory Agent** and **Warehouse Agent** (fire-and-forget — the customer never waits). The Inventory Agent in turn notifies the **Supplier Agent** if a product drops below its reorder threshold. All three inter-agent calls are visible as OTel spans in the traces view.
 
 ---
 
 ## Architecture
 
 ```
-  Customer (Browser)             Staff / Integrations
-        │                                │
-        ▼                                ▼
-┌──────────────────┐        ┌────────────────────────┐
-│ Customer Agent   │        │      Orchestrator       │
-│  POST /chat      │        │    POST /chat  :8000    │
-│  :8000           │        │    LangGraph ReAct      │
-│  Custom ReAct    │        └──┬────┬────┬────┬──┬───┘
-│  Mock OTel spans │           │    │    │    │  │
-└──────────────────┘           │    │    │    │  │
-        │                      │    │    │    │  │
-        │              ┌───────┘    │    │    │  └──────────────┐
-        │              │    ┌───────┘    └──────────┐           │
-        ▼              ▼    ▼                       ▼           ▼
-        │    ┌──────────────┐ ┌──────────────┐ ┌──────────┐ ┌──────────┐
-        │    │  SAP ERP     │ │ Oracle ERP   │ │   AWS    │ │   GCP    │
-        │    │  :8001       │ │  :8002       │ │  :8004   │ │  :8005   │
-        │    └──────────────┘ └──────────────┘ └──────────┘ └──────────┘
-        │                  ┌──────────────┐
-        │                  │  Salesforce  │
-        │                  │    :8003     │
-        │                  └──────────────┘
-        │
-        ▼
-┌──────────────────────────────────┐
-│         WSO2 Agent Manager       │
-│  (Traceloop / OTLP tracing for   │
-│   all agents — LangGraph + custom│
-│   ReAct spans unified in one UI) │
-└──────────────────────────────────┘
+  Customer (Browser)                    Staff / Integrations
+        │                                        │
+        ▼                                        ▼
+┌─────────────────────┐           ┌──────────────────────────┐
+│  Customer Agent     │           │       Orchestrator        │
+│  POST /chat  :8000  │           │  POST /chat  :8000        │
+│  Custom ReAct + LLM │           │  LangGraph ReAct          │
+└──────────┬──────────┘           └──┬────┬────┬────┬──┬─────┘
+           │ (fire & forget)          │    │    │    │  │
+     ┌─────┴──────┐                  │    │    │    │  │
+     ▼            ▼           ┌──────┘    │    │    │  └────────────┐
+┌─────────┐ ┌──────────┐      │   ┌───────┘    └──────────┐        │
+│Inventory│ │Warehouse │      ▼   ▼                       ▼        ▼
+│  Agent  │ │  Agent   │ ┌────────────┐ ┌────────────┐ ┌──────┐ ┌──────┐
+│  :8000  │ │  :8000   │ │  SAP ERP   │ │ Oracle ERP │ │ AWS  │ │ GCP  │
+└────┬────┘ └──────────┘ │  :8001     │ │  :8002     │ │:8004 │ │:8005 │
+     │ (fire & forget)   └────────────┘ └────────────┘ └──────┘ └──────┘
+     ▼                              ┌────────────┐
+┌──────────┐                        │ Salesforce │
+│ Supplier │                        │   :8003    │
+│  Agent   │                        └────────────┘
+│  :8000   │
+└──────────┘
+                    ▼
+     ┌──────────────────────────────────┐
+     │       WSO2 Agent Manager         │
+     │  Traceloop / OTLP tracing for    │
+     │  all agents — LangGraph + custom │
+     │  ReAct spans unified in one UI   │
+     └──────────────────────────────────┘
 ```
 
-Each agent exposes a **FastAPI `/chat` endpoint**. The five back-office agents use a **LangGraph ReAct graph**. The customer agent uses a **custom ReAct loop** (no LangGraph) — demonstrating that WSO2 Agent Manager is framework-agnostic.
+Each agent exposes a **FastAPI `/chat` endpoint**. The five back-office agents use a **LangGraph ReAct graph**. The customer, inventory, warehouse and supplier agents use a **custom ReAct loop** (no LangGraph) — demonstrating that WSO2 Agent Manager is framework-agnostic.
+
+---
+
+## Inter-Agent Order Flow
+
+When a customer places an order the following sequence runs automatically:
+
+```
+Customer Agent  ──[place_order]──► order confirmed ──► notify_agents_of_order()
+                                                              │
+                              ┌───────────────────────────────┤
+                              │  fire-and-forget threads       │
+                              ▼                               ▼
+                     Inventory Agent               Warehouse Agent
+                     reserve_stock()              create_fulfilment_task()
+                     check_inventory_levels()     assign_picker()
+                              │
+                     (if stock < reorder level)
+                              ▼
+                     Supplier Agent
+                     get_supplier_info()
+                     raise_purchase_order()
+```
+
+The customer agent returns its response immediately without waiting for the downstream agents. OTel spans are emitted synchronously before each thread is launched so the dispatch intent is always visible in traces.
+
+**Environment variables required on the Customer Agent:**
+
+| Variable | Default |
+|---|---|
+| `INVENTORY_AGENT_URL` | `http://inventory-agent:8000` |
+| `WAREHOUSE_AGENT_URL` | `http://warehouse-agent:8000` |
+
+**Environment variable required on the Inventory Agent:**
+
+| Variable | Default |
+|---|---|
+| `SUPPLIER_AGENT_URL` | `http://supplier-agent:8000` |
 
 ---
 
@@ -148,42 +186,120 @@ Simulates Google Cloud Platform services for analytics, ML predictions, event st
 
 ---
 
-## How It Works (Demo Mode)
+### Customer Agent (`customer_agent/`) — Port 8000
 
-Each agent uses a `DemoLLM` defined in `graph.py`. It implements LangChain's `BaseChatModel` interface so Traceloop auto-instrumentation treats it identically to a real LLM.
+Customer-facing shopping assistant powered by **Gemini 2.5 Flash** via the WSO2 AI Gateway. Uses a custom ReAct loop (no LangGraph). On a successful order placement it fires asynchronous notifications to the Inventory Agent and Warehouse Agent.
 
+**Tools:**
+| Tool | Description |
+|---|---|
+| `browse_products` | List products, optionally filtered by category |
+| `check_stock` | Real-time stock level for a product |
+| `place_order` | Place an order and trigger downstream notifications |
+| `track_order` | Current status and ETA for an existing order |
+| `get_customer_profile` | Loyalty tier and order history for a customer |
+
+**Demo customers:** `CUST-5001` – `CUST-5004`
+**Demo products:** `PROD-001` – `PROD-007` across 7 categories
+
+**Example `/chat` request:**
+```json
+{
+  "message": "I want to order 2 pints of milk and check when my last order arrives",
+  "session_id": "demo-session-1",
+  "context": { "customer_id": "CUST-5001" }
+}
 ```
-Incoming /chat request
-        │
-        ▼
-  LangGraph agent node
-  DemoLLM._generate()
-  ├── No ToolMessage yet → returns AIMessage with tool_call (keyword-selected tool)
-  │
-  ▼
-  LangGraph tools node
-  ToolNode executes the mock tool → returns realistic mock data
-  │
-  ▼
-  LangGraph agent node (second pass)
-  DemoLLM._generate()
-  └── ToolMessage present → returns final AIMessage with business response
-        │
-        ▼
-  FastAPI returns {"response": "..."}
+
+**Example response:**
+```json
+{
+  "response": "Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
+  "session_id": "demo-session-1",
+  "agent": "customer_agent"
+}
 ```
 
-Every step emits Traceloop spans: LLM call, tool execution, graph transitions.
+---
+
+### Inventory Agent (`inventory_agent/`) — Port 8000
+
+Triggered by the Customer Agent when an order is placed. Reserves stock against the order, checks current inventory levels, and fires a notification to the Supplier Agent if any product falls below its reorder threshold.
+
+**Tools:**
+| Tool | Description |
+|---|---|
+| `reserve_stock` | Reserve stock units against an order ID |
+| `check_inventory_levels` | Current stock vs reorder threshold for a product |
+| `release_reservation` | Release a reservation (e.g. on order cancellation) |
+
+**Demo products:** `PROD-001` – `PROD-007`
+
+**Example `/chat` request:**
+```json
+{
+  "message": "Reserve stock for order ORD-9004. Items: [{\"product_id\": \"PROD-001\", \"quantity\": 2}]",
+  "session_id": "notify-ORD-9004",
+  "context": {}
+}
+```
+
+---
+
+### Warehouse Agent (`warehouse_agent/`) — Port 8000
+
+Triggered by the Customer Agent when an order is placed. Creates a fulfilment task and assigns it to an available picker.
+
+**Tools:**
+| Tool | Description |
+|---|---|
+| `create_fulfilment_task` | Create a picking task for an order |
+| `assign_picker` | Assign an available warehouse picker to a task |
+| `update_dispatch_status` | Update the dispatch status of a fulfilment task |
+
+**Demo pickers:** `PICKER-01` – `PICKER-04`
+
+**Example `/chat` request:**
+```json
+{
+  "message": "Create fulfilment task for order ORD-9004. Customer: Emma Johnson.",
+  "session_id": "notify-ORD-9004",
+  "context": {}
+}
+```
+
+---
+
+### Supplier Agent (`supplier_agent/`) — Port 8000
+
+Triggered by the Inventory Agent when a product drops below its reorder threshold. Looks up the preferred supplier and raises a purchase order.
+
+**Tools:**
+| Tool | Description |
+|---|---|
+| `get_supplier_info` | Supplier contact, lead time, and MOQ details |
+| `raise_purchase_order` | Raise a purchase order with a supplier |
+
+**Demo suppliers:** `SUP-101` – `SUP-104`
+
+**Example `/chat` request:**
+```json
+{
+  "message": "Stock low for PROD-001. Raise a purchase order with the preferred supplier.",
+  "session_id": "reorder-PROD-001",
+  "context": {}
+}
+```
 
 ---
 
 ## WSO2 Agent Manager Configuration
 
-Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. The form has four sections: Agent Details, Repository Details, Build Details, and Agent Type.
+Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager.
 
-> **Deploy order:** deploy the 5 sub-agents first, then the orchestrator last (it needs the sub-agent URLs at startup).
+> **Deploy order:** deploy the four downstream agents first (inventory, warehouse, supplier, then the five back-office agents), then the Customer Agent and Orchestrator last. This ensures all agent URLs are available when the orchestrating agents start.
 
-> **Port:** you must add `PORT` = `8000` as an environment variable for every agent when deploying. This tells the agent which port to bind to inside its container so Agent Manager can reach it.
+> **Port:** add `PORT` = `8000` as an environment variable for every agent. This tells the agent which port to bind inside its container.
 
 ---
 
@@ -213,30 +329,13 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 | Language Version | `3.11` |
 | Enable auto instrumentation | ✅ checked |
 
-**Agent Type:** `Chat Agent` — standard chat interface with POST `/chat` on port 8000
+**Agent Type:** `Chat Agent`
 
 **Environment Variables:**
 
 | Key | Value | Secret |
 |---|---|---|
 | `PORT` | `8000` | ☐ |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
-
-**Example `/chat` request:**
-```json
-{
-  "message": "What is the current stock level for SKU-BEEF-001?",
-  "session_id": "demo-session-1",
-  "context": { "store_id": "STORE-001", "user_id": "buyer-001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "SAP MM Stock Check\nSKU: SKU-BEEF-001 | Store: STORE-001 | Plant: GBR1\nProduct: Morrisons Best Beef Mince 500g\nCurrent Stock: 45 units\nReorder Level: 120 units\nStatus: ⚠ BELOW REORDER LEVEL – replenishment required\nSuggested Order Qty: 195 units"
-}
-```
 
 ---
 
@@ -273,23 +372,6 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 | Key | Value | Secret |
 |---|---|---|
 | `PORT` | `8000` | ☐ |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
-
-**Example `/chat` request:**
-```json
-{
-  "message": "What is the available budget for cost centre CC-PRODUCE-01 in Q1 2026?",
-  "session_id": "demo-session-1",
-  "context": { "user_id": "finance-manager-001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "Oracle Fusion Budget Availability\nCost Centre: CC-PRODUCE-01 | Period: 2026-Q1\nApproved Budget: £850,000\nActual Spend: £512,340\nCommitted: £87,200\nAvailable: £250,460 (29.5%)\nStatus: ✓ Within budget"
-}
-```
 
 ---
 
@@ -326,23 +408,6 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 | Key | Value | Secret |
 |---|---|---|
 | `PORT` | `8000` | ☐ |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
-
-**Example `/chat` request:**
-```json
-{
-  "message": "Get the loyalty profile for customer CUST-100142",
-  "session_id": "demo-session-1",
-  "context": { "user_id": "crm-agent-001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "Salesforce Customer Profile\nID: CUST-100142 | Name: Sarah Thompson\nLoyalty Tier: Gold | Points: 4,820\nLifetime Spend: £12,340 | Member Since: 2019-03-14\nPreferred Categories: Fresh Produce, Dairy"
-}
-```
 
 ---
 
@@ -379,23 +444,6 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 | Key | Value | Secret |
 |---|---|---|
 | `PORT` | `8000` | ☐ |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
-
-**Example `/chat` request:**
-```json
-{
-  "message": "Analyse sales trends for STORE-001 over the last 30 days",
-  "session_id": "demo-session-1",
-  "context": { "store_id": "STORE-001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "AWS Sales Trend Analysis | Store: STORE-001 | Period: 30 days\nTotal Revenue: £1,842,500\nTop Category: Fresh Meat (£412,000, +8.3% WoW)\nBasket Size: £34.20 avg | Transactions: 53,870\nPeak Day: Saturday | Peak Hour: 12:00–13:00"
-}
-```
 
 ---
 
@@ -432,29 +480,121 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 | Key | Value | Secret |
 |---|---|---|
 | `PORT` | `8000` | ☐ |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
-
-**Example `/chat` request:**
-```json
-{
-  "message": "Run a BigQuery sales summary for STORE-001",
-  "session_id": "demo-session-1",
-  "context": { "store_id": "STORE-001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "BigQuery Analytics | Query: sales_summary | Store: STORE-001\nRows Processed: 2,847,392 | Bytes Billed: 48 MB\nRevenue (7d): £428,750 | Units Sold: 187,430\nTop SKU: SKU-MILK-003 (12,840 units)\nQuery Duration: 1.24s"
-}
-```
 
 ---
 
-### Agent 6 — Orchestrator
+### Agent 6 — Inventory Agent
 
-> Deploy this **last**, after all 5 sub-agents are running. Set the sub-agent URLs in environment variables so the orchestrator can reach them.
+**Agent Details**
+
+| Field | Value |
+|---|---|
+| Name | `Morrisons Inventory Agent` |
+| Description | `Inventory management agent — reserves stock on order placement, monitors levels, and triggers supplier reorders` |
+
+**Repository Details**
+
+| Field | Value |
+|---|---|
+| GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
+| Branch | `main` |
+| Project Path | `Morrisons/inventory_agent` |
+
+**Build Details**
+
+| Field | Value |
+|---|---|
+| Language | `Python` |
+| Start Command | `python main.py` |
+| Language Version | `3.11` |
+| Enable auto instrumentation | ✅ checked |
+
+**Agent Type:** `Chat Agent`
+
+**Environment Variables:**
+
+| Key | Value | Secret |
+|---|---|---|
+| `PORT` | `8000` | ☐ |
+| `SUPPLIER_AGENT_URL` | `http://<supplier-agent-host>:<port>` | ☐ |
+
+---
+
+### Agent 7 — Warehouse Agent
+
+**Agent Details**
+
+| Field | Value |
+|---|---|
+| Name | `Morrisons Warehouse Agent` |
+| Description | `Warehouse fulfilment agent — creates picking tasks and assigns pickers when an order is placed` |
+
+**Repository Details**
+
+| Field | Value |
+|---|---|
+| GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
+| Branch | `main` |
+| Project Path | `Morrisons/warehouse_agent` |
+
+**Build Details**
+
+| Field | Value |
+|---|---|
+| Language | `Python` |
+| Start Command | `python main.py` |
+| Language Version | `3.11` |
+| Enable auto instrumentation | ✅ checked |
+
+**Agent Type:** `Chat Agent`
+
+**Environment Variables:**
+
+| Key | Value | Secret |
+|---|---|---|
+| `PORT` | `8000` | ☐ |
+
+---
+
+### Agent 8 — Supplier Agent
+
+**Agent Details**
+
+| Field | Value |
+|---|---|
+| Name | `Morrisons Supplier Agent` |
+| Description | `Supplier management agent — looks up preferred suppliers and raises purchase orders when stock falls below reorder threshold` |
+
+**Repository Details**
+
+| Field | Value |
+|---|---|
+| GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
+| Branch | `main` |
+| Project Path | `Morrisons/supplier_agent` |
+
+**Build Details**
+
+| Field | Value |
+|---|---|
+| Language | `Python` |
+| Start Command | `python main.py` |
+| Language Version | `3.11` |
+| Enable auto instrumentation | ✅ checked |
+
+**Agent Type:** `Chat Agent`
+
+**Environment Variables:**
+
+| Key | Value | Secret |
+|---|---|---|
+| `PORT` | `8000` | ☐ |
+
+---
+
+### Agent 9 — Orchestrator
+
+> Deploy this **after** all sub-agents are running. Set the sub-agent URLs in environment variables so the orchestrator can reach them.
 
 **Agent Details**
 
@@ -492,29 +632,12 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 | `SALESFORCE_AGENT_URL` | `http://<salesforce-agent-host>:<port>` | ☐ |
 | `AWS_AGENT_URL` | `http://<aws-agent-host>:<port>` | ☐ |
 | `GCP_AGENT_URL` | `http://<gcp-agent-host>:<port>` | ☐ |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` | ✅ | ← only if switching to a real LLM |
-
-**Example `/chat` request:**
-```json
-{
-  "message": "Check stock for beef mince, raise a PO if needed, and notify the ops team",
-  "session_id": "demo-session-1",
-  "context": { "user_id": "store-manager-001", "store_id": "STORE-001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "Here is the consolidated response from the Morrisons specialist agents:\n\nSAP MM Stock Check — SKU-BEEF-001 is BELOW REORDER LEVEL (45 units, reorder at 120).\nSAP Purchase Order PO-004502 raised for 240 units from British Meat Supplies Ltd.\nAWS SNS notification sent to ops-alerts topic.\n\n✓ Orchestration complete."
-}
-```
 
 ---
 
-### Agent 7 — Customer Agent
+### Agent 10 — Customer Agent
 
-Customer-facing shopping assistant. See [customer_agent/README.md](customer_agent/README.md) for full detail.
+> Deploy this **after** the Inventory Agent and Warehouse Agent are running.
 
 **Agent Details**
 
@@ -547,32 +670,17 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 | Key | Value | Secret |
 |---|---|---|
 | `PORT` | `8000` | ☐ |
-
-> No API key needed — the agent runs fully in demo mode with mock OTLP spans.
-
-**Example `/chat` request:**
-```json
-{
-  "message": "I want to order 2 PROD-001 and track my last delivery",
-  "session_id": "demo-session-1",
-  "context": { "customer_id": "CUST-5001" }
-}
-```
-
-**Example response:**
-```json
-{
-  "response": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
-  "session_id": "demo-session-1",
-  "agent": "customer_agent"
-}
-```
+| `PRODUCTION_GEMINI_LLM_URL` | `http://ai-gateway.amp.localhost:8084/llm/gemini` | ☐ |
+| `PRODUCTION_GEMINI_LLM_API_KEY` | `<your-gateway-api-key>` | ✅ |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | ☐ |
+| `INVENTORY_AGENT_URL` | `http://<inventory-agent-host>:<port>` | ☐ |
+| `WAREHOUSE_AGENT_URL` | `http://<warehouse-agent-host>:<port>` | ☐ |
 
 ---
 
 ### Request / Response schema (all agents)
 
-All seven agents use the same Chat Agent interface:
+All ten agents use the same Chat Agent interface:
 
 ```
 POST /chat
@@ -581,42 +689,78 @@ Response: { "response": string }
 
 GET /health
 Response: { "status": "ok", "agent": "<agent-name>" }
+
+GET /tools
+Response: { "tools": [...] }
 ```
 
 ---
 
-## Running Locally (without Agent Manager)
+## How It Works
 
-```bash
-# Install dependencies (per agent)
-cd sap_agent && pip install -r requirements.txt
+### Customer Agent (custom ReAct + Gemini)
 
-# Start all agents
-python sap_agent/main.py &        # port 8001
-python oracle_agent/main.py &     # port 8002
-python salesforce_agent/main.py & # port 8003
-python aws_agent/main.py &        # port 8004
-python gcp_agent/main.py &        # port 8005
-python customer_agent/main.py &   # port 8000  — each agent uses :8000 inside its own container
-python orchestrator/main.py       # port 8000  — when running locally, use different ports via PORT env var
+```
+Incoming /chat request
+        │
+        ▼
+  Custom ReAct loop (agent.py)
+  GatewayLLM.select_tool()       ← Gemini 2.5 Flash via WSO2 AI Gateway
+  ├── Returns JSON {"tool": "...", "args": {...}}
+  │
+  ▼
+  Tool execution (tools.py)
+  ├── place_order → notify.py
+  │                 ├── OTel span: agent.notify.inventory-agent  (sync)
+  │                 ├── OTel span: agent.notify.warehouse-agent  (sync)
+  │                 ├── Thread → POST inventory-agent/chat       (async)
+  │                 └── Thread → POST warehouse-agent/chat       (async)
+  │
+  ▼
+  GatewayLLM.generate_response()
+  └── Final natural-language reply to customer
+        │
+        ▼
+  FastAPI returns {"response": "..."}
+```
+
+### Back-Office Agents (LangGraph ReAct)
+
+```
+Incoming /chat request
+        │
+        ▼
+  LangGraph agent node
+  DemoLLM._generate()
+  ├── No ToolMessage yet → returns AIMessage with tool_call (keyword-selected tool)
+  │
+  ▼
+  LangGraph tools node
+  ToolNode executes the mock tool → returns realistic mock data
+  │
+  ▼
+  LangGraph agent node (second pass)
+  DemoLLM._generate()
+  └── ToolMessage present → returns final AIMessage with business response
+        │
+        ▼
+  FastAPI returns {"response": "..."}
 ```
 
 ---
 
-## Switching to a Real LLM
+## Observability
 
-To replace `DemoLLM` with a real model, update `graph.py` in the relevant agent:
+WSO2 Agent Manager injects **Traceloop** via `sitecustomize.py` at startup. No OTEL initialisation code is needed in the agents.
 
-```python
-# Replace this:
-llm = DemoLLM().bind_tools(tools)
+Every request generates spans for:
+- LangGraph graph execution (entry, transitions, exit) — back-office agents
+- `DemoLLM.invoke()` or `GatewayLLM` call (LLM span)
+- Tool execution (tool span)
+- Inter-agent dispatch (`agent.notify.*` spans) — customer order flow
+- FastAPI request/response
 
-# With this (Anthropic):
-from config import settings
-llm = settings.build_llm().bind_tools(tools)
-```
-
-Then set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the agent's environment. The `build_llm()` method in `config.py` tries Anthropic first, then falls back to OpenAI.
+Traces are visible in the **Runtime Logs** and **Traces** views in Agent Manager.
 
 ---
 
@@ -626,41 +770,51 @@ Then set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the agent's environment. The
 wso2demo/
 └── Morrisons/
     ├── README.md
-    ├── customer_agent/         # Customer shopping agent (port 8000) ← NEW
+    ├── customer_agent/         # Customer shopping agent — Gemini via WSO2 AI Gateway
+    │   ├── agent.py            # Custom ReAct loop + GatewayLLM (google-genai SDK)
     │   ├── app.py              # FastAPI app + /chat endpoint
-    │   ├── agent.py            # Custom ReAct loop (no LangGraph) + DemoLLM
+    │   ├── notify.py           # Fire-and-forget inter-agent notifications + OTel spans
     │   ├── tools.py            # browse_products, check_stock, place_order, track_order
     │   ├── demo_data.py        # Mock product catalogue, stock, customers, orders
-    │   ├── traces.py           # Mock OTLP span emitter (stdout → WSO2 collector)
+    │   ├── traces.py           # OTel span helpers
+    │   ├── main.py             # uvicorn entry point
     │   ├── requirements.txt
     │   └── static/index.html   # WSO2-themed chat UI
-    ├── orchestrator/           # Master orchestrator (port 8000)
-    │   ├── app.py              # FastAPI app + /chat endpoint
-    │   ├── config.py           # Pydantic settings (LLM config, sub-agent URLs)
-    │   ├── graph.py            # LangGraph ReAct graph + DemoLLM
-    │   ├── tools.py            # ask_* tools (HTTP delegation to sub-agents)
-    │   ├── main.py             # uvicorn entry point
-    │   ├── openapi.yaml        # OpenAPI 3.1 spec
+    ├── inventory_agent/        # Stock reservation + reorder monitoring
+    │   ├── agent.py            # Custom ReAct loop
+    │   ├── app.py
+    │   ├── tools.py            # reserve_stock, check_inventory_levels, release_reservation
+    │   ├── demo_data.py
+    │   ├── traces.py
+    │   ├── main.py
     │   └── requirements.txt
-    ├── sap_agent/              # SAP S/4HANA agent (port 8001)
-    ├── oracle_agent/           # Oracle Fusion ERP agent (port 8002)
-    ├── salesforce_agent/       # Salesforce CRM agent (port 8003)
-    ├── aws_agent/              # AWS Cloud agent (port 8004)
-    └── gcp_agent/              # GCP agent (port 8005)
+    ├── warehouse_agent/        # Fulfilment task creation + picker assignment
+    │   ├── agent.py
+    │   ├── app.py
+    │   ├── tools.py            # create_fulfilment_task, assign_picker, update_dispatch_status
+    │   ├── demo_data.py
+    │   ├── traces.py
+    │   ├── main.py
+    │   └── requirements.txt
+    ├── supplier_agent/         # Purchase order management
+    │   ├── agent.py
+    │   ├── app.py
+    │   ├── tools.py            # get_supplier_info, raise_purchase_order
+    │   ├── demo_data.py
+    │   ├── traces.py
+    │   ├── main.py
+    │   └── requirements.txt
+    ├── orchestrator/           # Master orchestrator — LangGraph ReAct
+    │   ├── app.py
+    │   ├── config.py
+    │   ├── graph.py
+    │   ├── tools.py
+    │   ├── main.py
+    │   ├── openapi.yaml
+    │   └── requirements.txt
+    ├── sap_agent/              # SAP S/4HANA agent — LangGraph ReAct
+    ├── oracle_agent/           # Oracle Fusion ERP agent — LangGraph ReAct
+    ├── salesforce_agent/       # Salesforce CRM agent — LangGraph ReAct
+    ├── aws_agent/              # AWS Cloud agent — LangGraph ReAct
+    └── gcp_agent/              # GCP agent — LangGraph ReAct
 ```
-
-Each agent directory has the same 7-file structure as `orchestrator/`.
-
----
-
-## Observability
-
-WSO2 Agent Manager injects **Traceloop** via `sitecustomize.py` at startup. No OTEL initialisation code is needed in the agents — adding any would conflict with the platform's tracer.
-
-Every request generates spans for:
-- LangGraph graph execution (entry, transitions, exit)
-- `DemoLLM.invoke()` (LLM span)
-- `ToolNode` tool execution (tool span)
-- FastAPI request/response
-
-Traces are visible in the **Runtime Logs** and **Traces** views in Agent Manager.
