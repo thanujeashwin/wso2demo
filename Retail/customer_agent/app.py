@@ -72,8 +72,6 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
-    session_id: str
-    agent: str = "customer_agent"
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +130,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         logger.exception("agent.run raised: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return ChatResponse(response=reply, session_id=request.session_id)
+    return ChatResponse(response=reply)
 
 
 # ---------------------------------------------------------------------------
