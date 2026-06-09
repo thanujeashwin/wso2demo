@@ -3,8 +3,8 @@
 Implements: Observe → Think → Act → Observe → … → Respond
 
 LLM selection (auto-detected at startup):
-  • GatewayLLM  — used when PRODUCTION_GEMINI_LLM_URL and
-                  PRODUCTION_GEMINI_LLM_API_KEY are set (WSO2 Agent Manager)
+  • GatewayLLM  — used when GEMINILLM_URL and
+                  GEMINILLM_API_KEY are set (WSO2 Agent Manager)
   • DemoLLM    — deterministic keyword router, no API key required (local dev)
 
 OpenTelemetry spans are emitted for every LLM call, tool execution, and
@@ -76,8 +76,8 @@ class GatewayLLM:
     so the SDK does not send its own credential header.
 
     Env vars:
-      PRODUCTION_GEMINI_LLM_URL     — gateway invoke URL (injected by WSO2)
-      PRODUCTION_GEMINI_LLM_API_KEY — API key (injected by WSO2)
+      GEMINILLM_URL     — gateway invoke URL
+      GEMINILLM_API_KEY — API key
       GEMINI_MODEL                  — model name (default: gemini-1.5-flash)
     """
 
@@ -103,15 +103,14 @@ class GatewayLLM:
         from google import genai
         from google.genai import types as gtypes
 
-        url    = os.environ.get("PRODUCTION_GEMINI_LLM_URL")
-        apikey = os.environ.get("PRODUCTION_GEMINI_LLM_API_KEY")
+        url    = os.environ.get("GEMINILLM_URL")
+        apikey = os.environ.get("GEMINILLM_API_KEY")
 
         _http_options = gtypes.HttpOptions(
             base_url=url,
-            api_version="v1beta",
             client_args={"headers": {"API-Key": apikey, "Authorization": ""}},
         )
-        self._client    = genai.Client(api_key=apikey, http_options=_http_options)
+        self._client    = genai.Client(http_options=_http_options)
         self._gtypes    = gtypes
         self._last_tool = None   # stores {"name": ..., "args": ...} between steps
         self.model_name = f"GatewayLLM ({self.MODEL})"
