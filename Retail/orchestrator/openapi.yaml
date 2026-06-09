@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: Morrisons AI Orchestrator
+  description: >
+    Master orchestrator for Morrisons retail AI. Coordinates five specialist
+    sub-agents (SAP ERP, Oracle ERP, Salesforce CRM, AWS Cloud, GCP Cloud)
+    to execute end-to-end retail workflows including supply chain reorder,
+    customer personalisation, store health checks, and purchase-to-pay.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /chat:
+    post:
+      summary: Send a request to the Morrisons AI Orchestrator
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              supply_chain:
+                summary: Supply chain reorder workflow
+                value:
+                  message: "SKU-BEEF-001 is running low at STORE-001. Run the full supply chain reorder workflow."
+                  session_id: "demo-supply-chain-1"
+                  context:
+                    store_id: "STORE-001"
+                    user_id: "buyer-001"
+              store_health:
+                summary: Store health check
+                value:
+                  message: "Give me a complete health check for STORE-001: IoT sensors, stock levels, and sales trends."
+                  session_id: "demo-store-health-1"
+                  context:
+                    store_id: "STORE-001"
+              customer_personalisation:
+                summary: Customer personalisation
+                value:
+                  message: "Generate a personalised offer for customer CUST-002847 via the app."
+                  session_id: "demo-personalisation-1"
+                  context:
+                    user_id: "marketing-001"
+              p2p_finance:
+                summary: Purchase-to-Pay workflow
+                value:
+                  message: "Run the full P2P workflow: order 500 units of SKU-SALM-004 from SUP-004 against cost centre CC-FISH-003."
+                  session_id: "demo-p2p-1"
+                  context:
+                    user_id: "procurement-001"
+      responses:
+        '200':
+          description: Orchestrated agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        '200':
+          description: Orchestrator is healthy
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+      properties:
+        message:
+          type: string
+          minLength: 1
+          description: >
+            User request or workflow instruction. Can be a simple query or a
+            complex multi-step workflow spanning multiple systems.
+        session_id:
+          type: string
+          description: Unique session / conversation identifier
+        context:
+          type: object
+          description: Optional context such as store_id, user_id, cost_centre
+          additionalProperties: true
+    ChatResponse:
+      type: object
+      required:
+        - response
+      properties:
+        response:
+          type: string
+          description: Orchestrated response synthesising results from all relevant sub-agents

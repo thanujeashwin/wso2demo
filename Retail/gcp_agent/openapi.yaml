@@ -1,0 +1,68 @@
+openapi: 3.1.0
+info:
+  title: Morrisons GCP Cloud Agent
+  description: GCP agent for BigQuery analytics, Vertex AI predictions, IoT sensor data, Pub/Sub events, and Document AI.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8005
+paths:
+  /chat:
+    post:
+      summary: Send a message to the Oracle ERP agent
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              budget_check:
+                summary: Check budget availability
+                value:
+                  message: "How much budget is remaining on cost centre CC-FISH-003?"
+                  session_id: "demo-1"
+                  context: {user_id: "finance-001"}
+              approve_po:
+                summary: Approve a purchase order
+                value:
+                  message: "Approve PO-004502 for £3,500 against cost centre CC-FRESH-001, category Fresh Meat"
+                  session_id: "demo-2"
+                  context: {}
+      responses:
+        '200':
+          description: Agent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required: [message, session_id]
+      properties:
+        message:
+          type: string
+          minLength: 1
+        session_id:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+    ChatResponse:
+      type: object
+      required: [response]
+      properties:
+        response:
+          type: string
