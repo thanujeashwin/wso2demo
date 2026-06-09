@@ -397,7 +397,7 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
         "session.id":      session_id,
         "user.id":         context.get("user_id", "anonymous"),
         "customer.id":     customer_id,
-        "input.message":   message[:256],
+        "input.message":   message[:2000],
         "agent.type":      "customer_agent",
         "react.max_steps": MAX_STEPS,
     }
