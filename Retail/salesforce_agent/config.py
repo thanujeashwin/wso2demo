@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────────────────────────────
     geminillm_url: str = ""
     geminillm_api_key: str = ""
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
 
     timeout: float = Field(default=30.0)
     max_retries: int = Field(default=2)

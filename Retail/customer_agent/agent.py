@@ -78,10 +78,10 @@ class GatewayLLM:
     Env vars:
       GEMINILLM_URL     — gateway invoke URL
       GEMINILLM_API_KEY — API key
-      GEMINI_MODEL                  — model name (default: gemini-1.5-flash)
+      GEMINI_MODEL                  — model name (default: gemini-3.5-flash)
     """
 
-    MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+    MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
     _SYSTEM_PROMPT = (
         "You are a helpful Morrisons supermarket shopping assistant. "
