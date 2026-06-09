@@ -32,6 +32,18 @@ def start_span(name: str, attributes: dict[str, Any] | None = None) -> Generator
             raise
 
 
+def trace_llm_call(model_name: str, prompt: str, response: str) -> None:
+    with _tracer.start_as_current_span("llm.generate") as s:
+        s.set_attribute("gen_ai.system",        "google_gemini")
+        s.set_attribute("gen_ai.request.model", model_name)
+        s.set_attribute("llm.prompt_chars",     len(prompt))
+        s.set_attribute("llm.response_chars",   len(response))
+        s.set_attribute("span.kind",            "llm")
+        s.add_event("llm.prompt",   {"content": prompt[:512]})
+        s.add_event("llm.response", {"content": response[:512]})
+        s.set_status(Status(StatusCode.OK))
+
+
 def trace_agent_step(step: int, action: str, observation: str) -> None:
     with _tracer.start_as_current_span("agent.step") as s:
         s.set_attribute("react.step",        step)
