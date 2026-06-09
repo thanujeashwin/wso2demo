@@ -1,6 +1,6 @@
-# Morrisons Customer Agent — WSO2 Agent Manager Demo
+# Retail Customer Agent — WSO2 Agent Manager Demo
 
-A customer-facing AI agent that lets shoppers **browse products, check stock, place orders, and track deliveries** via a natural-language chat interface. Built as part of the [Morrisons multi-agent demo](../README.md) for WSO2 Agent Manager.
+A customer-facing AI agent that lets shoppers **browse products, check stock, place orders, and track deliveries** via a natural-language chat interface. Built as part of the [Retail multi-agent demo](../README.md) for WSO2 Agent Manager.
 
 > **Demo mode:** Uses a `DemoLLM` keyword router — no LLM API key required. Mock OpenTelemetry spans are emitted on every request, compatible with WSO2 Agent Manager's Traceloop instrumentation.
 
@@ -64,7 +64,7 @@ Customer (Browser)
 
 ---
 
-## Key Difference from Other Morrisons Agents
+## Key Difference from Other Retail Agents
 
 All other agents in this demo use **LangGraph** for their ReAct loop. This agent uses a **custom ReAct implementation** (`agent.py`) with no LangGraph dependency — demonstrating that WSO2 Agent Manager is framework-agnostic and works equally well with plain Python agents.
 
@@ -169,16 +169,16 @@ Returns a customer's name, email, loyalty tier, points balance, and recent order
 
 | ID | Product | Category | Price |
 |---|---|---|---|
-| PROD-001 | Morrisons British Whole Milk 4pt | dairy | £1.65 |
-| PROD-002 | Morrisons Free Range Eggs 12pk | eggs | £3.25 |
+| PROD-001 | Retail British Whole Milk 4pt | dairy | £1.65 |
+| PROD-002 | Retail Free Range Eggs 12pk | eggs | £3.25 |
 | PROD-003 | Hovis Best of Both 800g | bakery | £1.40 |
 | PROD-004 | Lurpak Spreadable Butter 500g | dairy | £3.75 |
-| PROD-005 | Morrisons Chicken Breast Fillets 600g | meat | £4.50 |
-| PROD-006 | Morrisons Red Seedless Grapes 500g | fruit | £2.00 |
+| PROD-005 | Retail Chicken Breast Fillets 600g | meat | £4.50 |
+| PROD-006 | Retail Red Seedless Grapes 500g | fruit | £2.00 |
 | PROD-007 | Cadbury Dairy Milk 200g | confectionery | £2.20 |
-| PROD-008 | Morrisons Broccoli 400g | vegetables | £0.89 |
+| PROD-008 | Retail Broccoli 400g | vegetables | £0.89 |
 | PROD-009 | Heinz Baked Beans 415g | canned | £0.99 |
-| PROD-010 | Morrisons Greek Style Yogurt 500g | dairy | £1.85 |
+| PROD-010 | Retail Greek Style Yogurt 500g | dairy | £1.85 |
 
 ### Customers
 
@@ -236,7 +236,7 @@ Returns the full OpenAPI-style tool schema for all 5 registered tools.
 ## Running Locally
 
 ```bash
-cd Morrisons/customer_agent
+cd Retail/customer_agent
 pip install -r requirements.txt
 python main.py
 ```
@@ -285,7 +285,7 @@ When deployed to WSO2 Agent Manager, stdout is captured by the platform's Tracel
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons Customer Agent` |
+| Name | `Retail Customer Agent` |
 | Description | `Customer-facing agent for browsing products, checking stock, placing orders and tracking deliveries` |
 
 ### Repository Details
@@ -294,7 +294,7 @@ When deployed to WSO2 Agent Manager, stdout is captured by the platform's Tracel
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/customer_agent` |
+| Project Path | `Retail/customer_agent` |
 
 ### Build Details
 

@@ -1,6 +1,6 @@
-# Morrisons AI Agent Demo — WSO2 Agent Manager
+# Retail AI Agent Demo — WSO2 Agent Manager
 
-A suite of seven AI agents built for **WSO2 Agent Manager**, demonstrating a multi-agent architecture for Morrisons supermarkets (UK). The agents simulate a real enterprise AI platform spanning SAP ERP, Oracle Finance, Salesforce CRM, AWS, GCP, and a customer-facing shopping assistant — emitting full observability traces via Traceloop on every request.
+A suite of seven AI agents built for **WSO2 Agent Manager**, demonstrating a multi-agent architecture for Retail supermarkets (UK). The agents simulate a real enterprise AI platform spanning SAP ERP, Oracle Finance, Salesforce CRM, AWS, GCP, and a customer-facing shopping assistant — emitting full observability traces via Traceloop on every request.
 
 > **Demo mode:** All agents use a `DemoLLM` (no API key required). The full ReAct pipeline runs on every request so WSO2 Agent Manager emits traces exactly as it would with a production LLM.
 
@@ -193,8 +193,8 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons SAP ERP Agent` |
-| Description | `SAP S/4HANA agent for Morrisons — stock levels, purchase orders, supplier data, and demand forecasting` |
+| Name | `Retail SAP ERP Agent` |
+| Description | `SAP S/4HANA agent for Retail — stock levels, purchase orders, supplier data, and demand forecasting` |
 
 **Repository Details**
 
@@ -202,7 +202,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/sap_agent` |
+| Project Path | `Retail/sap_agent` |
 
 **Build Details**
 
@@ -234,7 +234,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 **Example response:**
 ```json
 {
-  "response": "SAP MM Stock Check\nSKU: SKU-BEEF-001 | Store: STORE-001 | Plant: GBR1\nProduct: Morrisons Best Beef Mince 500g\nCurrent Stock: 45 units\nReorder Level: 120 units\nStatus: ⚠ BELOW REORDER LEVEL – replenishment required\nSuggested Order Qty: 195 units"
+  "response": "SAP MM Stock Check\nSKU: SKU-BEEF-001 | Store: STORE-001 | Plant: GBR1\nProduct: Retail Best Beef Mince 500g\nCurrent Stock: 45 units\nReorder Level: 120 units\nStatus: ⚠ BELOW REORDER LEVEL – replenishment required\nSuggested Order Qty: 195 units"
 }
 ```
 
@@ -246,8 +246,8 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons Oracle ERP Agent` |
-| Description | `Oracle Fusion Cloud ERP agent for Morrisons — budgets, PO approvals, invoices, cost centres, and journal entries` |
+| Name | `Retail Oracle ERP Agent` |
+| Description | `Oracle Fusion Cloud ERP agent for Retail — budgets, PO approvals, invoices, cost centres, and journal entries` |
 
 **Repository Details**
 
@@ -255,7 +255,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/oracle_agent` |
+| Project Path | `Retail/oracle_agent` |
 
 **Build Details**
 
@@ -299,8 +299,8 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons Salesforce CRM Agent` |
-| Description | `Salesforce Sales & Service Cloud agent for Morrisons — customer loyalty, personalised offers, supplier accounts, and service cases` |
+| Name | `Retail Salesforce CRM Agent` |
+| Description | `Salesforce Sales & Service Cloud agent for Retail — customer loyalty, personalised offers, supplier accounts, and service cases` |
 
 **Repository Details**
 
@@ -308,7 +308,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/salesforce_agent` |
+| Project Path | `Retail/salesforce_agent` |
 
 **Build Details**
 
@@ -352,8 +352,8 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons AWS Cloud Agent` |
-| Description | `AWS agent for Morrisons — sales analytics, Lambda workflows, S3 reports, SNS notifications, and DynamoDB session data` |
+| Name | `Retail AWS Cloud Agent` |
+| Description | `AWS agent for Retail — sales analytics, Lambda workflows, S3 reports, SNS notifications, and DynamoDB session data` |
 
 **Repository Details**
 
@@ -361,7 +361,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/aws_agent` |
+| Project Path | `Retail/aws_agent` |
 
 **Build Details**
 
@@ -405,8 +405,8 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons GCP Cloud Agent` |
-| Description | `GCP agent for Morrisons — BigQuery analytics, Vertex AI predictions, Pub/Sub events, IoT sensor data, and Document AI` |
+| Name | `Retail GCP Cloud Agent` |
+| Description | `GCP agent for Retail — BigQuery analytics, Vertex AI predictions, Pub/Sub events, IoT sensor data, and Document AI` |
 
 **Repository Details**
 
@@ -414,7 +414,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/gcp_agent` |
+| Project Path | `Retail/gcp_agent` |
 
 **Build Details**
 
@@ -460,8 +460,8 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons Orchestrator` |
-| Description | `Master orchestrator for Morrisons — routes requests to SAP, Oracle, Salesforce, AWS, and GCP specialist agents` |
+| Name | `Retail Orchestrator` |
+| Description | `Master orchestrator for Retail — routes requests to SAP, Oracle, Salesforce, AWS, and GCP specialist agents` |
 
 **Repository Details**
 
@@ -469,7 +469,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/orchestrator` |
+| Project Path | `Retail/orchestrator` |
 
 **Build Details**
 
@@ -506,7 +506,7 @@ Each agent is created via **Create a Platform-Hosted Agent** in Agent Manager. T
 **Example response:**
 ```json
 {
-  "response": "Here is the consolidated response from the Morrisons specialist agents:\n\nSAP MM Stock Check — SKU-BEEF-001 is BELOW REORDER LEVEL (45 units, reorder at 120).\nSAP Purchase Order PO-004502 raised for 240 units from British Meat Supplies Ltd.\nAWS SNS notification sent to ops-alerts topic.\n\n✓ Orchestration complete."
+  "response": "Here is the consolidated response from the Retail specialist agents:\n\nSAP MM Stock Check — SKU-BEEF-001 is BELOW REORDER LEVEL (45 units, reorder at 120).\nSAP Purchase Order PO-004502 raised for 240 units from British Meat Supplies Ltd.\nAWS SNS notification sent to ops-alerts topic.\n\n✓ Orchestration complete."
 }
 ```
 
@@ -520,7 +520,7 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 
 | Field | Value |
 |---|---|
-| Name | `Morrisons Customer Agent` |
+| Name | `Retail Customer Agent` |
 | Description | `Customer-facing agent for browsing products, checking stock, placing orders and tracking deliveries` |
 
 **Repository Details**
@@ -529,7 +529,7 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 |---|---|
 | GitHub Repository | `https://github.com/thanujeashwin/wso2demo` |
 | Branch | `main` |
-| Project Path | `Morrisons/customer_agent` |
+| Project Path | `Retail/customer_agent` |
 
 **Build Details**
 
@@ -562,7 +562,7 @@ Customer-facing shopping assistant. See [customer_agent/README.md](customer_agen
 **Example response:**
 ```json
 {
-  "response": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Morrisons British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
+  "response": "🛒 Order placed successfully!\n\nOrder ID: ORD-9004\nCustomer: Emma Johnson\n\nItems:\n  • Retail British Whole Milk 4pt × 2  =  £3.30\n\nTotal: £3.30\nEstimated delivery: Within 2–4 hours",
   "session_id": "demo-session-1",
   "agent": "customer_agent"
 }
@@ -624,7 +624,7 @@ Then set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the agent's environment. The
 
 ```
 wso2demo/
-└── Morrisons/
+└── Retail/
     ├── README.md
     ├── customer_agent/         # Customer shopping agent (port 8000) ← NEW
     │   ├── app.py              # FastAPI app + /chat endpoint
