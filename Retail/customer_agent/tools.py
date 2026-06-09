@@ -8,8 +8,13 @@ Mock OpenTelemetry spans are emitted via traces.py.
 from __future__ import annotations
 
 import json
+import logging
+import os
+import threading
 from datetime import datetime, timezone
 from typing import Any
+
+import httpx
 
 from demo_data import (
     PRODUCTS,
@@ -21,6 +26,23 @@ from demo_data import (
     next_order_id,
 )
 from traces import trace_tool
+
+_logger = logging.getLogger("customer_agent.tools")
+
+_INVENTORY_AGENT_URL = os.environ.get("INVENTORY_AGENT_URL", "")
+_WAREHOUSE_AGENT_URL = os.environ.get("WAREHOUSE_AGENT_URL", "")
+
+
+def _notify_agent(url: str, payload: dict) -> None:
+    """Fire-and-forget HTTP POST to a downstream agent. Runs in a background thread."""
+    if not url:
+        return
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.post(f"{url}/chat", json=payload)
+            _logger.info("Notified %s — status=%s", url, resp.status_code)
+    except Exception as exc:
+        _logger.warning("Notification to %s failed: %s", url, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +218,22 @@ def place_order(customer_id: str, items: list[dict[str, Any]]) -> str:
         "placed_at":   now,
         "estimated_delivery": "Within 2–4 hours",
     }
+
+    # Fire async notifications to inventory and warehouse agents
+    items_payload = [{"product_id": i["product_id"], "quantity": i["quantity"]} for i in order_items]
+    notification_msg = (
+        f"Order {oid} confirmed for customer {customer_id}. "
+        f"Items: {json.dumps(items_payload)}. Please process this order."
+    )
+    notification_context = {"order_id": oid, "customer_id": customer_id, "items": items_payload}
+    notification_body = {"message": notification_msg, "session_id": oid, "context": notification_context}
+
+    for agent_url in (_INVENTORY_AGENT_URL, _WAREHOUSE_AGENT_URL):
+        threading.Thread(
+            target=_notify_agent,
+            args=(agent_url, notification_body),
+            daemon=True,
+        ).start()
 
     return json.dumps({
         "status":               "ok",
