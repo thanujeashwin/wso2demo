@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import threading
 from datetime import datetime, timezone
 from typing import Any
 
@@ -28,21 +27,6 @@ from demo_data import (
 from traces import trace_tool
 
 _logger = logging.getLogger("customer_agent.tools")
-
-_INVENTORY_AGENT_URL = os.environ.get("INVENTORY_AGENT_URL", "")
-_WAREHOUSE_AGENT_URL = os.environ.get("WAREHOUSE_AGENT_URL", "")
-
-
-def _notify_agent(url: str, payload: dict) -> None:
-    """Fire-and-forget HTTP POST to a downstream agent. Runs in a background thread."""
-    if not url:
-        return
-    try:
-        with httpx.Client(timeout=15.0) as client:
-            resp = client.post(f"{url}/chat", json=payload)
-            _logger.info("Notified %s — status=%s", url, resp.status_code)
-    except Exception as exc:
-        _logger.warning("Notification to %s failed: %s", url, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -219,22 +203,6 @@ def place_order(customer_id: str, items: list[dict[str, Any]]) -> str:
         "estimated_delivery": "Within 2–4 hours",
     }
 
-    # Fire async notifications to inventory and warehouse agents
-    items_payload = [{"product_id": i["product_id"], "quantity": i["quantity"]} for i in order_items]
-    notification_msg = (
-        f"Order {oid} confirmed for customer {customer_id}. "
-        f"Items: {json.dumps(items_payload)}. Please process this order."
-    )
-    notification_context = {"order_id": oid, "customer_id": customer_id, "items": items_payload}
-    notification_body = {"message": notification_msg, "session_id": oid, "context": notification_context}
-
-    for agent_url in (_INVENTORY_AGENT_URL, _WAREHOUSE_AGENT_URL):
-        threading.Thread(
-            target=_notify_agent,
-            args=(agent_url, notification_body),
-            daemon=True,
-        ).start()
-
     return json.dumps({
         "status":               "ok",
         "order_id":             oid,
@@ -248,7 +216,75 @@ def place_order(customer_id: str, items: list[dict[str, Any]]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4. Track order
+# 4. Notify inventory agent (called programmatically after place_order)
+# ---------------------------------------------------------------------------
+
+@_register(
+    name="notify_inventory_agent",
+    description="Notify the inventory agent to reserve and process stock for a confirmed order.",
+    parameters={
+        "order_id":    {"type": "string", "required": True},
+        "customer_id": {"type": "string", "required": True},
+        "items":       {"type": "array",  "required": True, "description": "List of {product_id, quantity}"},
+    },
+)
+@trace_tool("notify_inventory_agent")
+def notify_inventory_agent(order_id: str, customer_id: str, items: list) -> str:
+    url = os.environ.get("INVENTORY_AGENT_URL", "")
+    if not url:
+        return json.dumps({"status": "skipped", "reason": "INVENTORY_AGENT_URL not configured"})
+    payload = {
+        "message": (
+            f"Order {order_id} confirmed for customer {customer_id}. "
+            f"Items: {json.dumps(items)}. Please reserve and process stock."
+        ),
+        "session_id": order_id,
+        "context": {"order_id": order_id, "customer_id": customer_id, "items": items},
+    }
+    try:
+        resp = httpx.post(f"{url}/chat", json=payload, timeout=15.0)
+        return json.dumps({"status": "ok", "agent": "inventory_agent", "http_status": resp.status_code})
+    except Exception as exc:
+        _logger.warning("notify_inventory_agent failed: %s", exc)
+        return json.dumps({"status": "error", "message": str(exc)})
+
+
+# ---------------------------------------------------------------------------
+# 5. Notify warehouse agent (called programmatically after place_order)
+# ---------------------------------------------------------------------------
+
+@_register(
+    name="notify_warehouse_agent",
+    description="Notify the warehouse agent to prepare fulfilment for a confirmed order.",
+    parameters={
+        "order_id":    {"type": "string", "required": True},
+        "customer_id": {"type": "string", "required": True},
+        "items":       {"type": "array",  "required": True, "description": "List of {product_id, quantity}"},
+    },
+)
+@trace_tool("notify_warehouse_agent")
+def notify_warehouse_agent(order_id: str, customer_id: str, items: list) -> str:
+    url = os.environ.get("WAREHOUSE_AGENT_URL", "")
+    if not url:
+        return json.dumps({"status": "skipped", "reason": "WAREHOUSE_AGENT_URL not configured"})
+    payload = {
+        "message": (
+            f"Order {order_id} confirmed for customer {customer_id}. "
+            f"Items: {json.dumps(items)}. Please prepare warehouse fulfilment."
+        ),
+        "session_id": order_id,
+        "context": {"order_id": order_id, "customer_id": customer_id, "items": items},
+    }
+    try:
+        resp = httpx.post(f"{url}/chat", json=payload, timeout=15.0)
+        return json.dumps({"status": "ok", "agent": "warehouse_agent", "http_status": resp.status_code})
+    except Exception as exc:
+        _logger.warning("notify_warehouse_agent failed: %s", exc)
+        return json.dumps({"status": "error", "message": str(exc)})
+
+
+# ---------------------------------------------------------------------------
+# 6. Track order
 # ---------------------------------------------------------------------------
 
 @_register(
@@ -294,7 +330,7 @@ def track_order(order_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 5. Get customer profile (used for personalisation / loyalty)
+# 7. Get customer profile (used for personalisation / loyalty)
 # ---------------------------------------------------------------------------
 
 @_register(

@@ -437,6 +437,11 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
 
             # ── RESPOND ───────────────────────────────────────────────────
             if obs_dict.get("status") in ("ok", "no_results") or step == MAX_STEPS:
+                # After a successful order, call downstream agents as traced tool calls
+                # so they appear as tool.notify_inventory_agent / tool.notify_warehouse_agent
+                # spans in the WSO2 Agent Manager trace.
+                if tool_name == "place_order" and obs_dict.get("status") == "ok":
+                    _call_downstream_agents(obs_dict, customer_id, session_id)
                 reply = llm.synthesise(conversation, obs_dict)
                 root_span.set_attribute("output.chars",      len(reply))
                 root_span.set_attribute("react.steps_taken", step)
@@ -453,6 +458,28 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _call_downstream_agents(order_result: dict, customer_id: str, session_id: str) -> None:
+    """Invoke inventory and warehouse notification tools as proper traced tool calls.
+
+    Each call emits a tool.notify_* span (via @trace_tool) inside the current
+    agent.chat root span, so they appear in WSO2 Agent Manager trace.
+    """
+    items = [
+        {"product_id": it["product_id"], "quantity": it["quantity"]}
+        for it in order_result.get("items", [])
+    ]
+    order_id = order_result.get("order_id", session_id)
+
+    for name in ("notify_inventory_agent", "notify_warehouse_agent"):
+        entry = TOOL_REGISTRY.get(name)
+        if entry:
+            try:
+                result = entry["fn"](order_id=order_id, customer_id=customer_id, items=items)
+                logger.info("%s → %s", name, result)
+            except Exception as exc:
+                logger.warning("%s failed: %s", name, exc)
+
 
 def _safe_json(raw: str) -> dict:
     try:
