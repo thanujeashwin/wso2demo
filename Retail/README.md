@@ -404,6 +404,40 @@ Response: { "status": "ok", "agent": "<agent-name>" }
 
 ---
 
+## Local Demo Web App
+
+A standalone retail-themed web app (`demo-webapp/`) lets you interact with the Customer Agent from your browser. It proxies requests to the WSO2 AI Gateway to work around CORS restrictions.
+
+### Prerequisites
+
+- WSO2 Agent Manager running locally (k3d) with the Customer Agent deployed
+- Gateway URL available at `http://default-default.openchoreoapis.localhost:19080/`
+- Python 3 installed
+
+### Running the Demo
+
+Open **two terminal windows** and run:
+
+```bash
+# Terminal 1 — CORS proxy (forwards browser requests to the AI Gateway)
+cd Retail/demo-webapp
+python3 proxy.py
+# Listens on http://localhost:8010
+# Proxies → http://default-default.openchoreoapis.localhost:19080/customer-agent-customer-agent-endpoint
+```
+
+```bash
+# Terminal 2 — static file server for the web app
+cd Retail/demo-webapp
+python3 -m http.server 9999
+```
+
+Then open **http://localhost:9999** in Chrome.
+
+> **Why a proxy?** The gateway only allows `Origin: http://localhost:3000`. The proxy strips and rewrites CORS headers so any local origin can reach it.
+
+---
+
 ## Running Locally (without Agent Manager)
 
 ```bash
@@ -428,35 +462,40 @@ Set `GEMINILLM_URL` and `GEMINILLM_API_KEY` on each agent to use Gemini; omit th
 wso2demo/
 └── Retail/
     ├── README.md
-    ├── customer_agent/         # Customer shopping agent — triggers inventory + warehouse async
-    │   ├── app.py              # FastAPI app + /chat endpoint
-    │   ├── agent.py            # Custom ReAct loop + GatewayLLM/DemoLLM
-    │   ├── tools.py            # browse_products, check_stock, place_order, track_order
-    │   ├── demo_data.py        # Mock product catalogue, stock, customers, orders
-    │   ├── traces.py           # OTLP span emitter
-    │   ├── main.py             # uvicorn entry point
+    ├── demo-webapp/                # Standalone local demo — run from here for presentations
+    │   ├── index.html              # FreshMart retail web app (talks to Customer Agent)
+    │   └── proxy.py                # CORS proxy — forwards localhost:8010 → AI Gateway:19080
+    ├── demo-presentation/          # Slide deck for presenting the demo
+    │   └── retail_agentic_demo.pptx
+    ├── customer_agent/             # Customer shopping agent — triggers inventory + warehouse async
+    │   ├── app.py                  # FastAPI app + /chat endpoint + CORS middleware
+    │   ├── agent.py                # Custom ReAct loop + guardrail + GatewayLLM/DemoLLM
+    │   ├── tools.py                # browse_products, check_stock, place_order, track_order, guardrail_check
+    │   ├── demo_data.py            # Mock product catalogue, stock, customers, orders
+    │   ├── traces.py               # OTLP span emitter + @trace_tool decorator
+    │   ├── main.py                 # uvicorn entry point
     │   ├── requirements.txt
-    │   └── static/index.html   # WSO2-themed chat UI
-    ├── inventory_agent/        # Reserves stock, triggers supplier when stock is low
+    │   └── static/index.html       # Embedded chat UI (served at GET /)
+    ├── inventory_agent/            # Reserves stock, triggers supplier when stock is low
     │   ├── app.py
-    │   ├── agent.py            # Custom ReAct loop + GatewayLLM/DemoLLM + supplier notification
-    │   ├── tools.py            # reserve_stock, check_inventory_levels, release_reservation
+    │   ├── agent.py                # Custom ReAct loop + GatewayLLM/DemoLLM + supplier notification
+    │   ├── tools.py                # reserve_stock, check_inventory_levels, release_reservation
     │   ├── demo_data.py
     │   ├── traces.py
     │   ├── main.py
     │   └── requirements.txt
-    ├── warehouse_agent/        # Pick-and-pack fulfilment
+    ├── warehouse_agent/            # Pick-and-pack fulfilment
     │   ├── app.py
-    │   ├── agent.py            # Custom ReAct loop + GatewayLLM/DemoLLM
-    │   ├── tools.py            # create_fulfilment_task, assign_picker, update_dispatch_status
+    │   ├── agent.py                # Custom ReAct loop + GatewayLLM/DemoLLM
+    │   ├── tools.py                # create_fulfilment_task, assign_picker, update_dispatch_status
     │   ├── demo_data.py
     │   ├── traces.py
     │   ├── main.py
     │   └── requirements.txt
-    └── supplier_agent/         # Raises purchase orders on low-stock alerts
+    └── supplier_agent/             # Raises purchase orders on low-stock alerts
         ├── app.py
-        ├── agent.py            # Custom ReAct loop + GatewayLLM/DemoLLM
-        ├── tools.py            # get_supplier_info, raise_purchase_order
+        ├── agent.py                # Custom ReAct loop + GatewayLLM/DemoLLM
+        ├── tools.py                # get_supplier_info, raise_purchase_order
         ├── demo_data.py
         ├── traces.py
         ├── main.py
