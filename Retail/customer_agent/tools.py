@@ -50,57 +50,6 @@ def _register(name: str, description: str, parameters: dict):
 
 
 # ---------------------------------------------------------------------------
-# 0. Guardrail check  (runs before every ReAct loop — appears in trace)
-# ---------------------------------------------------------------------------
-
-_SHOPPING_KEYWORDS = {
-    "product", "products", "stock", "order", "orders", "buy", "purchase",
-    "deliver", "delivery", "track", "tracking", "price", "browse", "list",
-    "search", "category", "dairy", "meat", "bakery", "fruit", "vegetables",
-    "eggs", "canned", "confectionery", "grocery", "groceries", "shop",
-    "loyalty", "points", "tier", "profile", "account", "available",
-    "milk", "butter", "bread", "chicken", "grapes", "chocolate", "broccoli",
-    "beans", "yogurt", "morrisons", "freshmart",
-    "hi", "hello", "hey", "thanks", "help", "prod-", "ord-", "cust-",
-}
-
-_OFF_TOPIC_KEYWORDS = {
-    "recipe", "recipes", "cooking", "baking", "how to cook", "how to make",
-    "instructions", "weather", "news", "politics", "sport", "sports",
-    "movie", "movies", "music", "programming", "software", "javascript",
-    "python", "bitcoin", "crypto", "invest", "translate",
-}
-
-
-@_register(
-    name="guardrail_check",
-    description="Validate that the customer message is within scope for the FreshMart shopping assistant before invoking the LLM.",
-    parameters={
-        "message": {"type": "string", "required": True},
-    },
-)
-@trace_tool("guardrail_check")
-def guardrail_check(message: str) -> str:
-    text = message.lower()
-    blocked = [kw for kw in _OFF_TOPIC_KEYWORDS if kw in text]
-    allowed = [kw for kw in _SHOPPING_KEYWORDS  if kw in text]
-    if blocked and not allowed:
-        _logger.info("Guardrail BLOCKED — hits=%s", blocked)
-        return json.dumps({
-            "status":   "blocked",
-            "reason":   "off_topic",
-            "keywords": blocked,
-            "message":  (
-                "I'm sorry, I can only help with FreshMart grocery shopping — "
-                "browsing products, checking stock, placing orders, and tracking deliveries. "
-                "How can I help you shop today?"
-            ),
-        })
-    _logger.info("Guardrail ALLOWED — blocked=%s allowed=%s", blocked, allowed)
-    return json.dumps({"status": "allowed"})
-
-
-# ---------------------------------------------------------------------------
 # 1. Browse products
 # ---------------------------------------------------------------------------
 
