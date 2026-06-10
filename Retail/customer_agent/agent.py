@@ -406,6 +406,15 @@ def run(message: str, session_id: str, context: dict | None = None) -> str:
 
     with start_span("agent.chat", attributes={**root_attrs, "llm.backend": llm.model_name}) as root_span:
 
+        # ── GUARDRAIL (runs before any LLM call — visible in trace) ───────────
+        _guardrail = TOOL_REGISTRY.get("guardrail_check")
+        if _guardrail:
+            _gr = _safe_json(_guardrail["fn"](message=message))
+            if _gr.get("status") == "blocked":
+                root_span.set_attribute("guardrail.blocked", True)
+                root_span.set_attribute("guardrail.reason",  _gr.get("reason", ""))
+                return _gr.get("message", "I can only help with grocery shopping queries.")
+
         for step in range(1, MAX_STEPS + 1):
 
             # ── THINK ─────────────────────────────────────────────────────

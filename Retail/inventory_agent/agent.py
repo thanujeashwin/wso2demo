@@ -59,11 +59,18 @@ class GatewayLLM:
     )
 
     def __init__(self):
-        from google import genai
-        from google.genai import types as gtypes
-
         url    = os.environ.get("GEMINILLM_URL")
         apikey = os.environ.get("GEMINILLM_API_KEY")
+
+        if not url or not apikey:
+            raise EnvironmentError(
+                "GEMINILLM_URL and GEMINILLM_API_KEY must be set to use GatewayLLM. "
+                f"Got GEMINILLM_URL={'<set>' if url else '<missing>'}, "
+                f"GEMINILLM_API_KEY={'<set>' if apikey else '<missing>'}."
+            )
+
+        from google import genai
+        from google.genai import types as gtypes
 
         _http_options = gtypes.HttpOptions(
             base_url=url,
