@@ -469,8 +469,8 @@ wso2demo/
     │   └── retail_agentic_demo.pptx
     ├── customer_agent/             # Customer shopping agent — triggers inventory + warehouse async
     │   ├── app.py                  # FastAPI app + /chat endpoint + CORS middleware
-    │   ├── agent.py                # Custom ReAct loop + guardrail + GatewayLLM/DemoLLM
-    │   ├── tools.py                # browse_products, check_stock, place_order, track_order, guardrail_check
+    │   ├── agent.py                # Custom ReAct loop + GatewayLLM/DemoLLM
+    │   ├── tools.py                # browse_products, check_stock, place_order, track_order
     │   ├── demo_data.py            # Mock product catalogue, stock, customers, orders
     │   ├── traces.py               # OTLP span emitter + @trace_tool decorator
     │   ├── main.py                 # uvicorn entry point

@@ -1,7 +1,7 @@
 """Local CORS proxy — forwards /chat to the WSO2 Agent Manager gateway."""
 import http.server, urllib.request, urllib.error, json, sys
 
-GATEWAY = "http://default-default.openchoreoapis.localhost:19080/customer-agent-customer-agent-endpoint"
+GATEWAY = "http://default-default.openchoreoapis.localhost:19080/retail-customer-agent-retail-customer-agent-endpoint"
 PORT    = 8010
 
 class Proxy(http.server.BaseHTTPRequestHandler):
